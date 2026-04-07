@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Categoria {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  productos Producto[]
+}
+
+model Proveedor {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  telefono  String?
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ingresos IngresoMercaderia[]
+  productos Producto[]
+  liquidaciones Liquidacion[]
+}
+
+model Producto {
+  id             Int      @id @default(autoincrement())
+  nombre         String
+  codigo         String   @unique
+  precioVenta    Float
+  costoProveedor Float
+  stockActual    Int      @default(0)
+  stockMinimo    Int      @default(0)
+  activo         Boolean  @default(true)
+
+  detallesIngreso     DetalleIngresoMercaderia[]
+  detallesVenta       DetalleVenta[]
+  movimientos         MovimientoInventario[]
+  detallesLiquidacion DetalleLiquidacion[]
+
+  categoriaId Int
+  proveedorId Int
+
+  categoria Categoria @relation(fields: [categoriaId], references: [id])
+  proveedor Proveedor @relation(fields: [proveedorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model IngresoMercaderia {
+  id             Int                       @id @default(autoincrement())
+  fecha          DateTime                  @default(now())
+  tipoIngreso    TipoIngreso
+  observacion    String?
+  proveedorId    Int
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  proveedor      Proveedor                 @relation(fields: [proveedorId], references: [id])
+  detalles       DetalleIngresoMercaderia[]
+}
+
+model DetalleIngresoMercaderia {
+  id                Int               @id @default(autoincrement())
+  cantidad          Int
+  costoUnitario     Float
+  subtotal          Float
+  ingresoId         Int
+  productoId        Int
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  ingreso           IngresoMercaderia @relation(fields: [ingresoId], references: [id])
+  producto          Producto          @relation(fields: [productoId], references: [id])
+}
+
+model Venta {
+  id              Int            @id @default(autoincrement())
+  fecha           DateTime       @default(now())
+  total           Float
+  metodoPago      MetodoPago
+  observacion     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  detalles        DetalleVenta[]
+}
+
+model DetalleVenta {
+  id              Int       @id @default(autoincrement())
+  cantidad        Int
+  precioUnitario  Float
+  subtotal        Float
+  ventaId         Int
+  productoId      Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  venta           Venta     @relation(fields: [ventaId], references: [id])
+  producto        Producto  @relation(fields: [productoId], references: [id])
+}
+
+model MovimientoInventario {
+  id              Int              @id @default(autoincrement())
+  tipoMovimiento  TipoMovimiento
+  cantidad        Int
+  observacion     String?
+  productoId      Int
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  producto        Producto         @relation(fields: [productoId], references: [id])
+}
+
+enum TipoIngreso {
+  CONSIGNACION
+  COMPRA_DIRECTA
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  QR
+  MIXTO
+}
+
+enum TipoMovimiento {
+  ENTRADA
+  SALIDA
+  AJUSTE
+}
+
+model Liquidacion {
+  id              Int                 @id @default(autoincrement())
+  fecha           DateTime            @default(now())
+  periodo         String
+  totalPagar      Float
+  cerrada         Boolean             @default(false)
+  observacion     String?
+  proveedorId     Int
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  proveedor       Proveedor           @relation(fields: [proveedorId], references: [id])
+  detalles        DetalleLiquidacion[]
+}
+
+model DetalleLiquidacion {
+  id                Int          @id @default(autoincrement())
+  cantidadRecibida  Int
+  cantidadVendida   Int
+  cantidadRestante  Int
+  costoUnitario     Float
+  subtotal          Float
+  liquidacionId     Int
+  productoId        Int
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  liquidacion       Liquidacion  @relation(fields: [liquidacionId], references: [id])
+  producto          Producto     @relation(fields: [productoId], references: [id])
+}
