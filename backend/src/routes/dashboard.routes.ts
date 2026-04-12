@@ -1,4 +1,5 @@
 import * as express from 'express'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../config/prisma'
 
 const router = express.Router()
@@ -47,80 +48,135 @@ router.get('/resumen', async (_req, res) => {
       999
     )
 
-    const [
-      ventasHoy,
-      ventasMes,
-      productos,
-      ultimasVentas,
-      detallesVenta,
-      liquidacionesAbiertas,
-    ] = await Promise.all([
-      prisma.venta.findMany({
-        where: {
-          fecha: {
-            gte: inicioDia,
-            lte: finDia,
+    const [ventasHoy, ventasMes, productos, ultimasVentas, detallesVenta] =
+      await Promise.all([
+        prisma.venta.findMany({
+          where: {
+            fecha: {
+              gte: inicioDia,
+              lte: finDia,
+            },
           },
-        },
-      }),
+        }),
 
-      prisma.venta.findMany({
-        where: {
-          fecha: {
-            gte: inicioMes,
-            lte: finMes,
+        prisma.venta.findMany({
+          where: {
+            fecha: {
+              gte: inicioMes,
+              lte: finMes,
+            },
           },
-        },
-      }),
+        }),
 
-      prisma.producto.findMany({
-        include: {
-          categoria: true,
-          proveedor: true,
-        },
-      }),
+        prisma.producto.findMany({
+          include: {
+            categoria: true,
+            proveedor: true,
+          },
+        }),
 
-      prisma.venta.findMany({
-        orderBy: {
-          id: 'desc',
+        prisma.venta.findMany({
+          orderBy: {
+            id: 'desc',
+          },
+          take: 5,
+          include: {
+            detalles: {
+              include: {
+                producto: true,
+              },
+            },
+          },
+        }),
+
+        prisma.detalleVenta.findMany({
+          include: {
+            producto: true,
+          },
+        }),
+      ])
+
+    type DetalleVentaPendiente = Prisma.DetalleVentaGetPayload<{
+      include: {
+        producto: {
+          select: {
+            costoProveedor: true
+            manejaPack: true
+            unidadesPorPack: true
+          }
+        }
+      }
+    }>
+
+    const detallesVentaPendientes: DetalleVentaPendiente[] =
+      await prisma.detalleVenta.findMany({
+        where: {
+          liquidacionId: null,
         },
-        take: 5,
         include: {
-          detalles: {
-            include: {
-              producto: true,
+          producto: {
+            select: {
+              costoProveedor: true,
+              manejaPack: true,
+              unidadesPorPack: true,
             },
           },
         },
-      }),
+      })
 
-      prisma.detalleVenta.findMany({
-        include: {
-          producto: true,
-        },
-      }),
+      
 
-      prisma.liquidacion.findMany({
-        where: {
-          cerrada: false,
-        },
-        include: {
-          proveedor: true,
-        },
-      }),
-    ])
-
-    const totalVentasHoy = ventasHoy.reduce((acc, venta) => acc + venta.total, 0)
-    const totalVentasMes = ventasMes.reduce((acc, venta) => acc + venta.total, 0)
-
-    const productosBajoStock = productos.filter(
-      (producto) => producto.stockActual <= producto.stockMinimo
-    )
-
-    const deudaProveedores = liquidacionesAbiertas.reduce(
-      (acc, liquidacion) => acc + liquidacion.totalPagar,
+    const totalVentasHoy = ventasHoy.reduce(
+      (acc: number, venta: { total: number }) => acc + venta.total,
       0
     )
+
+    const totalVentasMes = ventasMes.reduce(
+      (acc: number, venta: { total: number }) => acc + venta.total,
+      0
+    )
+
+    const productosBajoStock = productos.filter(
+      (producto: { stockActual: number; stockMinimo: number }) =>
+        producto.stockActual <= producto.stockMinimo
+    )
+
+    const deudaAgrupadaPorProducto: Record<
+  number,
+  {
+    cantidadVendida: number
+    costoProveedor: number
+    manejaPack: boolean
+    unidadesPorPack: number | null
+  }
+> = {}
+
+for (const item of detallesVentaPendientes) {
+  const productoId = item.productoId
+
+  if (!deudaAgrupadaPorProducto[productoId]) {
+    deudaAgrupadaPorProducto[productoId] = {
+      cantidadVendida: 0,
+      costoProveedor: item.producto.costoProveedor,
+      manejaPack: item.producto.manejaPack,
+      unidadesPorPack: item.producto.unidadesPorPack,
+    }
+  }
+
+  deudaAgrupadaPorProducto[productoId].cantidadVendida += item.cantidad
+}
+
+let deudaProveedores = 0
+
+for (const item of Object.values(deudaAgrupadaPorProducto)) {
+  if (item.manejaPack && item.unidadesPorPack && item.unidadesPorPack > 0) {
+    const packs = Math.ceil(item.cantidadVendida / item.unidadesPorPack)
+    deudaProveedores += packs * item.unidadesPorPack * item.costoProveedor
+  } else {
+    deudaProveedores += item.cantidadVendida * item.costoProveedor
+  }
+}
+
 
     const acumuladoPorProducto = new Map<
       number,
@@ -154,6 +210,7 @@ router.get('/resumen', async (_req, res) => {
     const productosMasVendidos = Array.from(acumuladoPorProducto.values())
       .sort((a, b) => b.cantidadVendida - a.cantidadVendida)
       .slice(0, 5)
+
 
     res.json({
       resumen: {

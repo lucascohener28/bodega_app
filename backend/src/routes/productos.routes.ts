@@ -65,6 +65,8 @@ router.post('/', async (req, res) => {
       activo,
       categoriaId,
       proveedorId,
+      manejaPack,
+      unidadesPorPack,
     } = req.body
 
     if (
@@ -101,22 +103,27 @@ router.post('/', async (req, res) => {
     }
 
     const nuevoProducto = await prisma.producto.create({
-      data: {
-        nombre: String(nombre).trim(),
-        codigo: String(codigo).trim(),
-        precioVenta: Number(precioVenta),
-        costoProveedor: Number(costoProveedor),
-        stockActual: stockActual !== undefined ? Number(stockActual) : 0,
-        stockMinimo: stockMinimo !== undefined ? Number(stockMinimo) : 0,
-        activo: activo !== undefined ? Boolean(activo) : true,
-        categoriaId: Number(categoriaId),
-        proveedorId: Number(proveedorId),
-      },
-      include: {
-        categoria: true,
-        proveedor: true,
-      },
-    })
+  data: {
+    nombre: String(nombre).trim(),
+    codigo: String(codigo).trim(),
+    precioVenta: Number(precioVenta),
+    costoProveedor: Number(costoProveedor),
+    stockActual: stockActual !== undefined ? Number(stockActual) : 0,
+    stockMinimo: stockMinimo !== undefined ? Number(stockMinimo) : 0,
+    activo: activo !== undefined ? Boolean(activo) : true,
+    categoriaId: Number(categoriaId),
+    proveedorId: Number(proveedorId),
+    manejaPack: manejaPack !== undefined ? Boolean(manejaPack) : false,
+    unidadesPorPack:
+      manejaPack !== undefined && Boolean(manejaPack)
+        ? Number(unidadesPorPack)
+        : null,
+  },
+  include: {
+    categoria: true,
+    proveedor: true,
+  },
+})
 
     res.status(201).json(nuevoProducto)
   } catch (error: any) {
@@ -154,6 +161,8 @@ router.put('/:id', async (req, res) => {
       activo,
       categoriaId,
       proveedorId,
+      manejaPack,
+      unidadesPorPack,
     } = req.body
 
     const productoExistente = await prisma.producto.findUnique({
@@ -164,30 +173,6 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({
         error: 'Producto no encontrado',
       })
-    }
-
-    if (categoriaId !== undefined) {
-      const categoriaExiste = await prisma.categoria.findUnique({
-        where: { id: Number(categoriaId) },
-      })
-
-      if (!categoriaExiste) {
-        return res.status(400).json({
-          error: 'La categoría no existe',
-        })
-      }
-    }
-
-    if (proveedorId !== undefined) {
-      const proveedorExiste = await prisma.proveedor.findUnique({
-        where: { id: Number(proveedorId) },
-      })
-
-      if (!proveedorExiste) {
-        return res.status(400).json({
-          error: 'El proveedor no existe',
-        })
-      }
     }
 
     const productoActualizado = await prisma.producto.update({
@@ -203,6 +188,13 @@ router.put('/:id', async (req, res) => {
         activo: activo !== undefined ? Boolean(activo) : undefined,
         categoriaId: categoriaId !== undefined ? Number(categoriaId) : undefined,
         proveedorId: proveedorId !== undefined ? Number(proveedorId) : undefined,
+
+        // ✅ ESTA ES LA CLAVE
+        manejaPack: manejaPack !== undefined ? Boolean(manejaPack) : undefined,
+        unidadesPorPack:
+          manejaPack
+            ? Number(unidadesPorPack)
+            : null,
       },
       include: {
         categoria: true,

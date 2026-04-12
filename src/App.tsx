@@ -86,8 +86,12 @@ type ProductoVenta = {
   nombre: string;
   codigo: string;
   precioVenta: number;
+  costoProveedor: number;
   stockActual: number;
+  stockMinimo: number;
   activo: boolean;
+  manejaPack: boolean;
+  unidadesPorPack: number | null;
   categoria: {
     id: number;
     nombre: string;
@@ -1249,6 +1253,11 @@ function ProductsView() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
 
+  const [editingProductId, setEditingProductId] = useState<number | null>(null);
+  const [updatingProduct, setUpdatingProduct] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updateSuccess, setUpdateSuccess] = useState<string | null>(null);
+
   const [newProduct, setNewProduct] = useState({
     nombre: "",
     codigo: "",
@@ -1258,6 +1267,22 @@ function ProductsView() {
     categoriaId: "",
     proveedorId: "",
     activo: true,
+    manejaPack: false,
+    unidadesPorPack: "",
+  });
+
+  const [editProduct, setEditProduct] = useState({
+    id: 0,
+    nombre: "",
+    codigo: "",
+    precioVenta: "",
+    costoProveedor: "",
+    stockMinimo: "",
+    categoriaId: "",
+    proveedorId: "",
+    activo: true,
+    manejaPack: false,
+    unidadesPorPack: "",
   });
 
   async function loadProductsData() {
@@ -1324,9 +1349,21 @@ function ProductsView() {
         return;
       }
 
+      if (
+        newProduct.manejaPack &&
+        (!newProduct.unidadesPorPack ||
+          Number(newProduct.unidadesPorPack) <= 0)
+      ) {
+        setCreateError("Debes indicar cuántas unidades tiene el pack");
+        setCreateSuccess(null);
+        return;
+      }
+
       setCreatingProduct(true);
       setCreateError(null);
       setCreateSuccess(null);
+
+      console.log("NEW PRODUCT", newProduct);
 
       const response = await fetch("http://localhost:3001/productos", {
         method: "POST",
@@ -1344,6 +1381,10 @@ function ProductsView() {
           activo: newProduct.activo,
           categoriaId: Number(newProduct.categoriaId),
           proveedorId: Number(newProduct.proveedorId),
+          manejaPack: newProduct.manejaPack,
+          unidadesPorPack: newProduct.manejaPack
+            ? Number(newProduct.unidadesPorPack)
+            : null,
         }),
       });
 
@@ -1363,6 +1404,8 @@ function ProductsView() {
         categoriaId: "",
         proveedorId: "",
         activo: true,
+        manejaPack: false,
+        unidadesPorPack: "",
       });
 
       await loadProductsData();
@@ -1372,6 +1415,102 @@ function ProductsView() {
       setCreateError(err.message || "No se pudo crear el producto");
     } finally {
       setCreatingProduct(false);
+    }
+  }
+
+  function openEditForm(product: ProductoVenta) {
+    setEditingProductId(product.id);
+    setUpdateError(null);
+    setUpdateSuccess(null);
+
+    setEditProduct({
+      id: product.id,
+      nombre: product.nombre,
+      codigo: product.codigo,
+      precioVenta: String(product.precioVenta),
+      costoProveedor: String(product.costoProveedor),
+      stockMinimo: String(product.stockMinimo),
+      categoriaId: String(product.categoria.id),
+      proveedorId: String(product.proveedor.id),
+      activo: product.activo,
+      manejaPack: product.manejaPack,
+      unidadesPorPack:
+        product.unidadesPorPack !== null
+          ? String(product.unidadesPorPack)
+          : "",
+    });
+  }
+
+  async function handleUpdateProduct() {
+    try {
+      if (
+        !editProduct.nombre.trim() ||
+        !editProduct.codigo.trim() ||
+        editProduct.precioVenta === "" ||
+        editProduct.costoProveedor === "" ||
+        editProduct.categoriaId === "" ||
+        editProduct.proveedorId === ""
+      ) {
+        setUpdateError("Completa todos los campos obligatorios");
+        setUpdateSuccess(null);
+        return;
+      }
+
+      if (
+        editProduct.manejaPack &&
+        (!editProduct.unidadesPorPack ||
+          Number(editProduct.unidadesPorPack) <= 0)
+      ) {
+        setUpdateError("Debes indicar cuántas unidades tiene el pack");
+        setUpdateSuccess(null);
+        return;
+      }
+
+      setUpdatingProduct(true);
+      setUpdateError(null);
+      setUpdateSuccess(null);
+
+      const response = await fetch(
+        `http://localhost:3001/productos/${editProduct.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            nombre: editProduct.nombre,
+            codigo: editProduct.codigo,
+            precioVenta: Number(editProduct.precioVenta),
+            costoProveedor: Number(editProduct.costoProveedor),
+            stockMinimo:
+              editProduct.stockMinimo === ""
+                ? 0
+                : Number(editProduct.stockMinimo),
+            activo: editProduct.activo,
+            categoriaId: Number(editProduct.categoriaId),
+            proveedorId: Number(editProduct.proveedorId),
+            manejaPack: editProduct.manejaPack,
+            unidadesPorPack: editProduct.manejaPack
+              ? Number(editProduct.unidadesPorPack)
+              : null,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo actualizar el producto");
+      }
+
+      setUpdateSuccess("Producto actualizado correctamente");
+      await loadProductsData();
+    } catch (err: any) {
+      console.error(err);
+      setUpdateSuccess(null);
+      setUpdateError(err.message || "No se pudo actualizar el producto");
+    } finally {
+      setUpdatingProduct(false);
     }
   }
 
@@ -1386,8 +1525,8 @@ function ProductsView() {
             Productos
           </h2>
           <p className="mt-2 max-w-2xl text-slate-500">
-            Administración del catálogo principal de la bodega con precios, stock
-            y proveedor.
+            Administración del catálogo principal de la bodega con precios, stock,
+            proveedor y configuración de packs.
           </p>
         </div>
 
@@ -1415,118 +1554,148 @@ function ProductsView() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <input
-              type="text"
-              value={newProduct.nombre}
-              onChange={(e) =>
-                setNewProduct((prev) => ({ ...prev, nombre: e.target.value }))
-              }
-              placeholder="Nombre"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
-            />
+  <input
+    type="text"
+    value={newProduct.nombre}
+    onChange={(e) =>
+      setNewProduct((prev) => ({ ...prev, nombre: e.target.value }))
+    }
+    placeholder="Nombre"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+  />
 
-            <input
-              type="text"
-              value={newProduct.codigo}
-              onChange={(e) =>
-                setNewProduct((prev) => ({ ...prev, codigo: e.target.value }))
-              }
-              placeholder="Código"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
-            />
+  <input
+    type="text"
+    value={newProduct.codigo}
+    onChange={(e) =>
+      setNewProduct((prev) => ({ ...prev, codigo: e.target.value }))
+    }
+    placeholder="Código"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+  />
 
-            <input
-              type="number"
-              min="0"
-              value={newProduct.precioVenta}
-              onChange={(e) =>
-                setNewProduct((prev) => ({
-                  ...prev,
-                  precioVenta: e.target.value,
-                }))
-              }
-              placeholder="Precio de venta"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
-            />
+  <input
+    type="number"
+    min="0"
+    value={newProduct.precioVenta}
+    onChange={(e) =>
+      setNewProduct((prev) => ({
+        ...prev,
+        precioVenta: e.target.value,
+      }))
+    }
+    placeholder="Precio de venta"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+  />
 
-            <input
-              type="number"
-              min="0"
-              value={newProduct.costoProveedor}
-              onChange={(e) =>
-                setNewProduct((prev) => ({
-                  ...prev,
-                  costoProveedor: e.target.value,
-                }))
-              }
-              placeholder="Costo proveedor"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
-            />
+  <input
+    type="number"
+    min="0"
+    value={newProduct.costoProveedor}
+    onChange={(e) =>
+      setNewProduct((prev) => ({
+        ...prev,
+        costoProveedor: e.target.value,
+      }))
+    }
+    placeholder="Costo proveedor"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+  />
 
-            <input
-              type="number"
-              min="0"
-              value={newProduct.stockMinimo}
-              onChange={(e) =>
-                setNewProduct((prev) => ({
-                  ...prev,
-                  stockMinimo: e.target.value,
-                }))
-              }
-              placeholder="Stock mínimo"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
-            />
+  <input
+    type="number"
+    min="0"
+    value={newProduct.stockMinimo}
+    onChange={(e) =>
+      setNewProduct((prev) => ({
+        ...prev,
+        stockMinimo: e.target.value,
+      }))
+    }
+    placeholder="Stock mínimo"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+  />
 
-            <select
-              value={newProduct.categoriaId}
-              onChange={(e) =>
-                setNewProduct((prev) => ({
-                  ...prev,
-                  categoriaId: e.target.value,
-                }))
-              }
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
-            >
-              <option value="">Seleccionar categoría</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.nombre}
-                </option>
-              ))}
-            </select>
+  <select
+    value={newProduct.categoriaId}
+    onChange={(e) =>
+      setNewProduct((prev) => ({
+        ...prev,
+        categoriaId: e.target.value,
+      }))
+    }
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+  >
+    <option value="">Seleccionar categoría</option>
+    {categories.map((category) => (
+      <option key={category.id} value={category.id}>
+        {category.nombre}
+      </option>
+    ))}
+  </select>
 
-            <select
-              value={newProduct.proveedorId}
-              onChange={(e) =>
-                setNewProduct((prev) => ({
-                  ...prev,
-                  proveedorId: e.target.value,
-                }))
-              }
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
-            >
-              <option value="">Seleccionar proveedor</option>
-              {providers.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.nombre}
-                </option>
-              ))}
-            </select>
+  <select
+    value={newProduct.proveedorId}
+    onChange={(e) =>
+      setNewProduct((prev) => ({
+        ...prev,
+        proveedorId: e.target.value,
+      }))
+    }
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+  >
+    <option value="">Seleccionar proveedor</option>
+    {providers.map((provider) => (
+      <option key={provider.id} value={provider.id}>
+        {provider.nombre}
+      </option>
+    ))}
+  </select>
 
-            <select
-              value={newProduct.activo ? "true" : "false"}
-              onChange={(e) =>
-                setNewProduct((prev) => ({
-                  ...prev,
-                  activo: e.target.value === "true",
-                }))
-              }
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
-            >
-              <option value="true">Activo</option>
-              <option value="false">Inactivo</option>
-            </select>
-          </div>
+  <select
+    value={newProduct.activo ? "true" : "false"}
+    onChange={(e) =>
+      setNewProduct((prev) => ({
+        ...prev,
+        activo: e.target.value === "true",
+      }))
+    }
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+  >
+    <option value="true">Activo</option>
+    <option value="false">Inactivo</option>
+  </select>
+
+  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+    <input
+      type="checkbox"
+      checked={newProduct.manejaPack}
+      onChange={(e) =>
+        setNewProduct((prev) => ({
+          ...prev,
+          manejaPack: e.target.checked,
+          unidadesPorPack: e.target.checked ? prev.unidadesPorPack || "1" : "",
+        }))
+      }
+    />
+    Maneja pack
+  </label>
+
+  <input
+    type="number"
+    min="1"
+    value={newProduct.unidadesPorPack}
+    onChange={(e) =>
+      setNewProduct((prev) => ({
+        ...prev,
+        unidadesPorPack: e.target.value,
+      }))
+    }
+    placeholder="Unidades por pack"
+    disabled={!newProduct.manejaPack}
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+  />
+</div>
 
           {createError && (
             <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
@@ -1558,6 +1727,198 @@ function ProductsView() {
               className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Cancelar
+            </button>
+          </div>
+        </section>
+      )}
+
+      {editingProductId !== null && (
+        <section className="rounded-[28px] border border-amber-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+          <div className="mb-6">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-600">
+              Edición
+            </p>
+            <h3 className="mt-3 text-2xl font-bold text-slate-950">
+              Editar producto
+            </h3>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <input
+              type="text"
+              value={editProduct.nombre}
+              onChange={(e) =>
+                setEditProduct((prev) => ({ ...prev, nombre: e.target.value }))
+              }
+              placeholder="Nombre"
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+            />
+
+            <input
+              type="text"
+              value={editProduct.codigo}
+              onChange={(e) =>
+                setEditProduct((prev) => ({ ...prev, codigo: e.target.value }))
+              }
+              placeholder="Código"
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+            />
+
+            <input
+              type="number"
+              min="0"
+              value={editProduct.precioVenta}
+              onChange={(e) =>
+                setEditProduct((prev) => ({
+                  ...prev,
+                  precioVenta: e.target.value,
+                }))
+              }
+              placeholder="Precio de venta"
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+            />
+
+            <input
+              type="number"
+              min="0"
+              value={editProduct.costoProveedor}
+              onChange={(e) =>
+                setEditProduct((prev) => ({
+                  ...prev,
+                  costoProveedor: e.target.value,
+                }))
+              }
+              placeholder="Costo proveedor"
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+            />
+
+            <input
+              type="number"
+              min="0"
+              value={editProduct.stockMinimo}
+              onChange={(e) =>
+                setEditProduct((prev) => ({
+                  ...prev,
+                  stockMinimo: e.target.value,
+                }))
+              }
+              placeholder="Stock mínimo"
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+            />
+
+            <select
+              value={editProduct.categoriaId}
+              onChange={(e) =>
+                setEditProduct((prev) => ({
+                  ...prev,
+                  categoriaId: e.target.value,
+                }))
+              }
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+            >
+              <option value="">Seleccionar categoría</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.nombre}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={editProduct.proveedorId}
+              onChange={(e) =>
+                setEditProduct((prev) => ({
+                  ...prev,
+                  proveedorId: e.target.value,
+                }))
+              }
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+            >
+              <option value="">Seleccionar proveedor</option>
+              {providers.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.nombre}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={editProduct.activo ? "true" : "false"}
+              onChange={(e) =>
+                setEditProduct((prev) => ({
+                  ...prev,
+                  activo: e.target.value === "true",
+                }))
+              }
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+            >
+              <option value="true">Activo</option>
+              <option value="false">Inactivo</option>
+            </select>
+
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={editProduct.manejaPack}
+                onChange={(e) =>
+                  setEditProduct((prev) => ({
+                    ...prev,
+                    manejaPack: e.target.checked,
+                    unidadesPorPack: e.target.checked
+                      ? prev.unidadesPorPack || "1"
+                      : "",
+                  }))
+                }
+              />
+              Maneja pack
+            </label>
+
+            <input
+              type="number"
+              min="1"
+              value={editProduct.unidadesPorPack}
+              onChange={(e) =>
+                setEditProduct((prev) => ({
+                  ...prev,
+                  unidadesPorPack: e.target.value,
+                }))
+              }
+              placeholder="Unidades por pack"
+              disabled={!editProduct.manejaPack}
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </div>
+
+          {updateError && (
+            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {updateError}
+            </div>
+          )}
+
+          {updateSuccess && (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {updateSuccess}
+            </div>
+          )}
+
+          <div className="mt-6 flex gap-3">
+            <button
+              onClick={handleUpdateProduct}
+              disabled={updatingProduct}
+              className="rounded-2xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {updatingProduct ? "Actualizando..." : "Guardar cambios"}
+            </button>
+
+            <button
+              onClick={() => {
+                setEditingProductId(null);
+                setUpdateError(null);
+                setUpdateSuccess(null);
+              }}
+              className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Cancelar edición
             </button>
           </div>
         </section>
@@ -1621,7 +1982,7 @@ function ProductsView() {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] border-separate border-spacing-y-3">
+          <table className="w-full min-w-[1280px] border-separate border-spacing-y-3">
             <thead>
               <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                 <th className="pb-2">Producto</th>
@@ -1631,6 +1992,7 @@ function ProductsView() {
                 <th className="pb-2">Costo proveedor</th>
                 <th className="pb-2">Stock</th>
                 <th className="pb-2">Mínimo</th>
+                <th className="pb-2">Pack</th>
                 <th className="pb-2">Estado</th>
                 <th className="pb-2">Acción</th>
               </tr>
@@ -1681,6 +2043,12 @@ function ProductsView() {
                       {product.stockMinimo}
                     </td>
 
+                    <td className="px-4 py-4 text-slate-600">
+                      {product.manejaPack
+                        ? `${product.unidadesPorPack ?? 0} u.`
+                        : "No"}
+                    </td>
+
                     <td className="px-4 py-4">
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -1695,10 +2063,10 @@ function ProductsView() {
 
                     <td className="rounded-r-2xl px-4 py-4">
                       <div className="flex gap-2">
-                        <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
-                          Ver
-                        </button>
-                        <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                        <button
+                          onClick={() => openEditForm(product)}
+                          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
                           Editar
                         </button>
                       </div>
@@ -2168,21 +2536,29 @@ function IngresosView() {
 }
 
 function LiquidacionesView() {
+  type ProveedorConDeuda = {
+    proveedor: ProveedorOption;
+    resumen: LiquidacionResumen;
+  };
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
   const [providers, setProviders] = useState<ProveedorOption[]>([]);
-  const [providerId, setProviderId] = useState<number | "">("");
-  const [periodo, setPeriodo] = useState("");
+  const [periodo, setPeriodo] = useState(currentMonth);
 
-  const [resumen, setResumen] = useState<LiquidacionResumen | null>(null);
+  const [liquidacionesPendientes, setLiquidacionesPendientes] = useState<
+    ProveedorConDeuda[]
+  >([]);
 
-  const [loading, setLoading] = useState(false);
+  const [selectedProviderId, setSelectedProviderId] = useState<number | null>(
+    null
+  );
+
+  const [loading, setLoading] = useState(true);
+  const [closingId, setClosingId] = useState<number | null>(null);
+
   const [error, setError] = useState<string | null>(null);
-
-  const [creating, setCreating] = useState(false);
-  const [closing, setClosing] = useState(false);
-
   const [success, setSuccess] = useState<string | null>(null);
-
-  const [liquidacionId, setLiquidacionId] = useState<number | null>(null);
 
   useEffect(() => {
     async function loadProviders() {
@@ -2191,210 +2567,333 @@ function LiquidacionesView() {
         setProviders(data);
       } catch (err) {
         console.error(err);
+        setError("No se pudieron cargar los proveedores");
       }
     }
 
     loadProviders();
   }, []);
 
-  async function handleCalcular() {
-    try {
-      if (!providerId || !periodo) {
-        setError("Selecciona proveedor y período");
-        return;
+  useEffect(() => {
+    async function loadPendientesPorProveedor() {
+      try {
+        if (providers.length === 0 || !periodo) {
+          setLiquidacionesPendientes([]);
+          setSelectedProviderId(null);
+          setLoading(false);
+          return;
+        }
+
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        const results = await Promise.all(
+          providers.map(async (provider) => {
+            try {
+              const resumen = await fetchJson<LiquidacionResumen>(
+                `/liquidaciones/resumen/calculo?proveedorId=${provider.id}&periodo=${periodo}`
+              );
+
+              if (!resumen.detalles || resumen.detalles.length === 0) {
+                return null;
+              }
+
+              if (!resumen.totalGeneral || resumen.totalGeneral <= 0) {
+                return null;
+              }
+
+              return {
+                proveedor: provider,
+                resumen,
+              };
+            } catch (err) {
+              return null;
+            }
+          })
+        );
+
+        const pendientes = results.filter(
+          (item): item is ProveedorConDeuda => item !== null
+        );
+
+        setLiquidacionesPendientes(pendientes);
+
+        if (pendientes.length === 0) {
+          setSelectedProviderId(null);
+        } else {
+          const existeSeleccionado = pendientes.some(
+            (item) => item.proveedor.id === selectedProviderId
+          );
+
+          if (!existeSeleccionado) {
+            setSelectedProviderId(pendientes[0].proveedor.id);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        setError("No se pudieron cargar las liquidaciones pendientes");
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(true);
-      setError(null);
-      setSuccess(null);
-      setLiquidacionId(null);
-
-      const data = await fetchJson<LiquidacionResumen>(
-        `/liquidaciones/resumen/calculo?proveedorId=${providerId}&periodo=${periodo}`
-      );
-
-      setResumen(data);
-    } catch (err: any) {
-      console.error(err);
-      setResumen(null);
-      setError(err.message || "Error al calcular liquidación");
-    } finally {
-      setLoading(false);
     }
-  }
 
-  async function handleCrearLiquidacion() {
+    loadPendientesPorProveedor();
+  }, [providers, periodo]);
+
+  const selectedLiquidacion =
+    liquidacionesPendientes.find(
+      (item) => item.proveedor.id === selectedProviderId
+    ) ?? null;
+
+  async function handleCerrarLiquidacion(proveedorId: number) {
     try {
-      if (!providerId || !periodo) {
-        setError("Selecciona proveedor y período");
-        return;
-      }
-
-      setCreating(true);
+      setClosingId(proveedorId);
       setError(null);
       setSuccess(null);
 
-      const response = await fetch("http://localhost:3001/liquidaciones", {
+      const crearResponse = await fetch("http://localhost:3001/liquidaciones", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          proveedorId: providerId,
+          proveedorId,
           periodo,
         }),
       });
 
-      const data = await response.json();
+      const crearData = await crearResponse.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || "Error al crear liquidación");
+      if (!crearResponse.ok) {
+        throw new Error(crearData.error || "No se pudo generar la liquidación");
       }
 
-      setLiquidacionId(data.id);
-      setSuccess("Liquidación creada correctamente");
+      const cerrarResponse = await fetch(
+        `http://localhost:3001/liquidaciones/${crearData.id}/cerrar`,
+        {
+          method: "PATCH",
+        }
+      );
+
+      const cerrarData = await cerrarResponse.json();
+
+      if (!cerrarResponse.ok) {
+        throw new Error(
+          cerrarData.error || "No se pudo cerrar la liquidación"
+        );
+      }
+
+      setSuccess("Liquidación cerrada correctamente");
+
+      const pendientesActualizados = liquidacionesPendientes.filter(
+        (item) => item.proveedor.id !== proveedorId
+      );
+
+      setLiquidacionesPendientes(pendientesActualizados);
+
+      if (selectedProviderId === proveedorId) {
+        setSelectedProviderId(
+          pendientesActualizados.length > 0
+            ? pendientesActualizados[0].proveedor.id
+            : null
+        );
+      }
     } catch (err: any) {
       console.error(err);
-      setError(err.message);
+      setError(err.message || "Error al cerrar la liquidación");
     } finally {
-      setCreating(false);
+      setClosingId(null);
     }
   }
-
-  async function handleCerrarLiquidacion() {
-  try {
-    if (!liquidacionId) {
-      setError("Primero debes crear la liquidación antes de cerrarla");
-      return;
-    }
-
-    setClosing(true);
-    setError(null);
-    setSuccess(null);
-
-    const response = await fetch(
-      `http://localhost:3001/liquidaciones/${liquidacionId}/cerrar`,
-      {
-        method: "PATCH",
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Error al cerrar liquidación");
-    }
-
-    setSuccess("Liquidación cerrada correctamente");
-  } catch (err: any) {
-    console.error(err);
-    setError(err.message || "Error al cerrar liquidación");
-  } finally {
-    setClosing(false);
-  }
-}
 
   return (
     <div className="space-y-6">
       <section className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase text-blue-600">
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
             Finanzas & consignación
           </p>
-          <h2 className="mt-3 text-4xl font-bold text-slate-950">
+          <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
             Liquidaciones
           </h2>
+          <p className="mt-2 max-w-2xl text-slate-500">
+            Aquí ves automáticamente las deudas pendientes por proveedor y puedes
+            cerrar la liquidación cuando quieras.
+          </p>
         </div>
 
-        <button
-          onClick={handleCrearLiquidacion}
-          disabled={creating}
-          className="rounded-2xl bg-blue-600 px-5 py-3 text-white"
-        >
-          {creating ? "Creando..." : "Crear liquidación"}
-        </button>
-      </section>
-
-      <section className="rounded-2xl bg-white p-6">
-        <div className="flex gap-3 mb-6">
-          <select
-            value={providerId}
-            onChange={(e) =>
-              setProviderId(e.target.value ? Number(e.target.value) : "")
-            }
-            className="h-12 rounded-xl border px-4"
-          >
-            <option value="">Proveedor</option>
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre}
-              </option>
-            ))}
-          </select>
-
+        <div className="flex items-center gap-3">
           <input
             type="month"
             value={periodo}
             onChange={(e) => setPeriodo(e.target.value)}
-            className="h-12 rounded-xl border px-4"
+            className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-300"
           />
-
-          <button
-            onClick={handleCalcular}
-            className="bg-slate-900 text-white px-4 rounded-xl"
-          >
-            Calcular
-          </button>
         </div>
+      </section>
 
-        {loading && <p>Cargando...</p>}
-        {error && <p className="text-red-600">{error}</p>}
-        {success && <p className="text-green-600">{success}</p>}
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
-        {resumen && (
-          <>
-            <table className="w-full mt-4">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Ingresado</th>
-                  <th>Vendido</th>
-                  <th>Stock</th>
-                  <th>Costo</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
+      {success && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {success}
+        </div>
+      )}
 
-              <tbody>
-                {resumen.detalles.map((item) => (
-                  <tr key={item.productoId}>
-                    <td>{item.nombreProducto}</td>
-                    <td>{item.cantidadIngresada}</td>
-                    <td>{item.cantidadVendida}</td>
-                    <td>{item.stockActual}</td>
-                    <td>{formatGs(item.costoUnitario)}</td>
-                    <td>{formatGs(item.subtotalPagar)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="mt-6">
-              <h3 className="text-2xl font-bold">
-                Total: {formatGs(resumen.totalGeneral)}
+      {loading ? (
+        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+          <p className="text-sm text-slate-500">Cargando liquidaciones pendientes...</p>
+        </section>
+      ) : liquidacionesPendientes.length === 0 ? (
+        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+          <p className="text-sm text-slate-500">
+            No hay deudas pendientes para el período seleccionado.
+          </p>
+        </section>
+      ) : (
+        <div className="grid gap-6 xl:grid-cols-[0.9fr_1.4fr]">
+          <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+            <div className="mb-5">
+              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                Proveedores con deuda
+              </p>
+              <h3 className="mt-2 text-2xl font-bold text-slate-950">
+                Pendientes del período
               </h3>
             </div>
 
-            <button
-              onClick={handleCerrarLiquidacion}
-              disabled={closing || !liquidacionId}
-              className="mt-4 bg-emerald-600 text-white px-4 py-2 rounded-xl disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {closing ? "Cerrando..." : "Cerrar liquidación"}
-            </button>
-          </>
-        )}
-      </section>
+            <div className="space-y-4">
+              {liquidacionesPendientes.map((item) => {
+                const isActive = item.proveedor.id === selectedProviderId;
+
+                return (
+                  <button
+                    key={item.proveedor.id}
+                    onClick={() => {
+                      setSelectedProviderId(item.proveedor.id);
+                      setError(null);
+                      setSuccess(null);
+                    }}
+                    className={`w-full rounded-[22px] border p-4 text-left transition ${
+                      isActive
+                        ? "border-blue-200 bg-blue-50"
+                        : "border-slate-200 bg-slate-50/70 hover:bg-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {item.proveedor.nombre}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {item.resumen.detalles.length} productos pendientes
+                        </p>
+                      </div>
+
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                        {formatGs(item.resumen.totalGeneral)}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+            {!selectedLiquidacion ? (
+              <p className="text-sm text-slate-500">
+                Selecciona un proveedor para ver el detalle.
+              </p>
+            ) : (
+              <>
+                <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                      Detalle de liquidación
+                    </p>
+                    <h3 className="mt-2 text-2xl font-bold text-slate-950">
+                      {selectedLiquidacion.proveedor.nombre}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Período {periodo}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() =>
+                      handleCerrarLiquidacion(selectedLiquidacion.proveedor.id)
+                    }
+                    disabled={closingId === selectedLiquidacion.proveedor.id}
+                    className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {closingId === selectedLiquidacion.proveedor.id
+                      ? "Cerrando..."
+                      : "Cerrar liquidación"}
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] border-separate border-spacing-y-3">
+                    <thead>
+                      <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        <th className="pb-2">Producto</th>
+                        <th className="pb-2">Ingresado</th>
+                        <th className="pb-2">Vendido</th>
+                        <th className="pb-2">Stock</th>
+                        <th className="pb-2">Costo</th>
+                        <th className="pb-2">Total</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {selectedLiquidacion.resumen.detalles.map((item) => (
+                        <tr key={item.productoId} className="rounded-2xl bg-slate-50">
+                          <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">
+                            {item.nombreProducto}
+                          </td>
+                          <td className="px-4 py-4 text-slate-700">
+                            {item.cantidadIngresada}
+                          </td>
+                          <td className="px-4 py-4 text-slate-700">
+                            {item.cantidadVendida}
+                          </td>
+                          <td className="px-4 py-4 text-slate-700">
+                            {item.stockActual}
+                          </td>
+                          <td className="px-4 py-4 text-slate-700">
+                            {formatGs(item.costoUnitario)}
+                          </td>
+                          <td className="rounded-r-2xl px-4 py-4 font-semibold text-slate-950">
+                            {formatGs(item.subtotalPagar)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
+                    Total a pagar
+                  </p>
+                  <h3 className="mt-2 text-4xl font-bold tracking-tight">
+                    {formatGs(selectedLiquidacion.resumen.totalGeneral)}
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-400">
+                    Deuda pendiente actual de este proveedor
+                  </p>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   );
 }

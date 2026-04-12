@@ -38,6 +38,9 @@ model Producto {
   stockMinimo    Int      @default(0)
   activo         Boolean  @default(true)
 
+  manejaPack     Boolean  @default(false)
+  unidadesPorPack Int?
+
   detallesIngreso     DetalleIngresoMercaderia[]
   detallesVenta       DetalleVenta[]
   movimientos         MovimientoInventario[]
@@ -99,11 +102,13 @@ model DetalleVenta {
   subtotal        Float
   ventaId         Int
   productoId      Int
+  liquidacionId   Int?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  venta           Venta     @relation(fields: [ventaId], references: [id])
-  producto        Producto  @relation(fields: [productoId], references: [id])
+  venta           Venta      @relation(fields: [ventaId], references: [id])
+  producto        Producto   @relation(fields: [productoId], references: [id])
+  liquidacion     Liquidacion? @relation(fields: [liquidacionId], references: [id])
 }
 
 model MovimientoInventario {
@@ -149,6 +154,7 @@ model Liquidacion {
 
   proveedor       Proveedor           @relation(fields: [proveedorId], references: [id])
   detalles        DetalleLiquidacion[]
+  detallesVenta   DetalleVenta[]
 }
 
 model DetalleLiquidacion {

@@ -28,43 +28,6 @@ router.get('/', async (_req, res) => {
   }
 })
 
-router.get('/:id', async (req, res) => {
-  try {
-    const id = Number(req.params.id)
-
-    if (isNaN(id)) {
-      return res.status(400).json({
-        error: 'ID de liquidación inválido',
-      })
-    }
-
-    const liquidacion = await prisma.liquidacion.findUnique({
-      where: { id },
-      include: {
-        proveedor: true,
-        detalles: {
-          include: {
-            producto: true,
-          },
-        },
-      },
-    })
-
-    if (!liquidacion) {
-      return res.status(404).json({
-        error: 'Liquidación no encontrada',
-      })
-    }
-
-    res.json(liquidacion)
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({
-      error: 'Error al obtener la liquidación',
-    })
-  }
-})
-
 router.get('/resumen/calculo', async (req, res) => {
   try {
     const { proveedorId, periodo } = req.query
@@ -121,18 +84,9 @@ router.get('/resumen/calculo', async (req, res) => {
       },
     })
 
-    if (ingresos.length === 0) {
-      return res.json({
-        proveedor,
-        periodo,
-        detalles: [],
-        totalGeneral: 0,
-        mensaje: 'No hay ingresos para ese proveedor en ese período',
-      })
-    }
-
-    const ventas = await prisma.detalleVenta.findMany({
+    const ventasPendientes = await prisma.detalleVenta.findMany({
       where: {
+        liquidacionId: null,
         producto: {
           proveedorId: proveedorIdNumber,
         },
@@ -148,7 +102,17 @@ router.get('/resumen/calculo', async (req, res) => {
       },
     })
 
-    const resumenPorProducto = new Map<
+    if (ventasPendientes.length === 0) {
+      return res.json({
+        proveedor,
+        periodo,
+        detalles: [],
+        totalGeneral: 0,
+        mensaje: 'No hay ventas pendientes de liquidar para ese proveedor en ese período',
+      })
+    }
+
+    const resumenPorProducto: Record<
       number,
       {
         productoId: number
@@ -157,52 +121,64 @@ router.get('/resumen/calculo', async (req, res) => {
         cantidadVendida: number
         stockActual: number
         costoUnitario: number
+        manejaPack: boolean
+        unidadesPorPack: number | null
         subtotalPagar: number
       }
-    >()
+    > = {}
 
     for (const item of ingresos) {
       const productoId = item.productoId
 
-      if (!resumenPorProducto.has(productoId)) {
-        resumenPorProducto.set(productoId, {
-          productoId,
-          nombreProducto: item.producto.nombre,
-          cantidadIngresada: 0,
-          cantidadVendida: 0,
-          stockActual: item.producto.stockActual,
-          costoUnitario: item.costoUnitario,
-          subtotalPagar: 0,
-        })
-      }
-
-      const actual = resumenPorProducto.get(productoId)!
-      actual.cantidadIngresada += item.cantidad
-    }
-
-    for (const item of ventas) {
-      const productoId = item.productoId
-
-      if (!resumenPorProducto.has(productoId)) {
-        resumenPorProducto.set(productoId, {
+      if (!resumenPorProducto[productoId]) {
+        resumenPorProducto[productoId] = {
           productoId,
           nombreProducto: item.producto.nombre,
           cantidadIngresada: 0,
           cantidadVendida: 0,
           stockActual: item.producto.stockActual,
           costoUnitario: item.producto.costoProveedor,
+          manejaPack: item.producto.manejaPack,
+          unidadesPorPack: item.producto.unidadesPorPack,
           subtotalPagar: 0,
-        })
+        }
       }
 
-      const actual = resumenPorProducto.get(productoId)!
-      actual.cantidadVendida += item.cantidad
+      resumenPorProducto[productoId].cantidadIngresada += item.cantidad
+    }
+
+    for (const item of ventasPendientes) {
+      const productoId = item.productoId
+
+      if (!resumenPorProducto[productoId]) {
+        resumenPorProducto[productoId] = {
+          productoId,
+          nombreProducto: item.producto.nombre,
+          cantidadIngresada: 0,
+          cantidadVendida: 0,
+          stockActual: item.producto.stockActual,
+          costoUnitario: item.producto.costoProveedor,
+          manejaPack: item.producto.manejaPack,
+          unidadesPorPack: item.producto.unidadesPorPack,
+          subtotalPagar: 0,
+        }
+      }
+
+      resumenPorProducto[productoId].cantidadVendida += item.cantidad
     }
 
     let totalGeneral = 0
 
-    const detalles = Array.from(resumenPorProducto.values()).map((item) => {
-      const subtotalPagar = item.cantidadVendida * item.costoUnitario
+    const detalles = Object.values(resumenPorProducto).map((item) => {
+      let subtotalPagar = 0
+
+      if (item.manejaPack && item.unidadesPorPack && item.unidadesPorPack > 0) {
+        const packs = Math.ceil(item.cantidadVendida / item.unidadesPorPack)
+        subtotalPagar = packs * item.unidadesPorPack * item.costoUnitario
+      } else {
+        subtotalPagar = item.cantidadVendida * item.costoUnitario
+      }
+
       totalGeneral += subtotalPagar
 
       return {
@@ -221,6 +197,43 @@ router.get('/resumen/calculo', async (req, res) => {
     console.error(error)
     res.status(500).json({
       error: 'Error al calcular la liquidación',
+    })
+  }
+})
+
+router.get('/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+
+    if (isNaN(id)) {
+      return res.status(400).json({
+        error: 'ID de liquidación inválido',
+      })
+    }
+
+    const liquidacion = await prisma.liquidacion.findUnique({
+      where: { id },
+      include: {
+        proveedor: true,
+        detalles: {
+          include: {
+            producto: true,
+          },
+        },
+      },
+    })
+
+    if (!liquidacion) {
+      return res.status(404).json({
+        error: 'Liquidación no encontrada',
+      })
+    }
+
+    res.json(liquidacion)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({
+      error: 'Error al obtener la liquidación',
     })
   }
 })
@@ -281,14 +294,9 @@ router.post('/', async (req, res) => {
       },
     })
 
-    if (ingresos.length === 0) {
-      return res.status(400).json({
-        error: 'No hay ingresos para ese proveedor en ese período',
-      })
-    }
-
-    const ventas = await prisma.detalleVenta.findMany({
+    const ventasPendientes = await prisma.detalleVenta.findMany({
       where: {
+        liquidacionId: null,
         producto: {
           proveedorId: proveedorIdNumber,
         },
@@ -304,7 +312,13 @@ router.post('/', async (req, res) => {
       },
     })
 
-    const resumenPorProducto = new Map<
+    if (ventasPendientes.length === 0) {
+      return res.status(400).json({
+        error: 'No hay ventas pendientes de liquidar para ese proveedor en ese período',
+      })
+    }
+
+    const resumenPorProducto: Record<
       number,
       {
         productoId: number
@@ -312,49 +326,62 @@ router.post('/', async (req, res) => {
         cantidadVendida: number
         cantidadRestante: number
         costoUnitario: number
+        manejaPack: boolean
+        unidadesPorPack: number | null
         subtotal: number
       }
-    >()
+    > = {}
 
     for (const item of ingresos) {
       const productoId = item.productoId
 
-      if (!resumenPorProducto.has(productoId)) {
-        resumenPorProducto.set(productoId, {
-          productoId,
-          cantidadRecibida: 0,
-          cantidadVendida: 0,
-          cantidadRestante: item.producto.stockActual,
-          costoUnitario: item.costoUnitario,
-          subtotal: 0,
-        })
-      }
-
-      const actual = resumenPorProducto.get(productoId)!
-      actual.cantidadRecibida += item.cantidad
-    }
-
-    for (const item of ventas) {
-      const productoId = item.productoId
-
-      if (!resumenPorProducto.has(productoId)) {
-        resumenPorProducto.set(productoId, {
+      if (!resumenPorProducto[productoId]) {
+        resumenPorProducto[productoId] = {
           productoId,
           cantidadRecibida: 0,
           cantidadVendida: 0,
           cantidadRestante: item.producto.stockActual,
           costoUnitario: item.producto.costoProveedor,
+          manejaPack: item.producto.manejaPack,
+          unidadesPorPack: item.producto.unidadesPorPack,
           subtotal: 0,
-        })
+        }
       }
 
-      const actual = resumenPorProducto.get(productoId)!
-      actual.cantidadVendida += item.cantidad
+      resumenPorProducto[productoId].cantidadRecibida += item.cantidad
+    }
+
+    for (const item of ventasPendientes) {
+      const productoId = item.productoId
+
+      if (!resumenPorProducto[productoId]) {
+        resumenPorProducto[productoId] = {
+          productoId,
+          cantidadRecibida: 0,
+          cantidadVendida: 0,
+          cantidadRestante: item.producto.stockActual,
+          costoUnitario: item.producto.costoProveedor,
+          manejaPack: item.producto.manejaPack,
+          unidadesPorPack: item.producto.unidadesPorPack,
+          subtotal: 0,
+        }
+      }
+
+      resumenPorProducto[productoId].cantidadVendida += item.cantidad
     }
 
     let totalPagar = 0
-    const detallesData = Array.from(resumenPorProducto.values()).map((item) => {
-      const subtotal = item.cantidadVendida * item.costoUnitario
+
+    const detallesData = Object.values(resumenPorProducto).map((item) => {
+      let subtotal = 0
+
+      if (item.manejaPack && item.unidadesPorPack && item.unidadesPorPack > 0) {
+        const packs = Math.ceil(item.cantidadVendida / item.unidadesPorPack)
+        subtotal = packs * item.unidadesPorPack * item.costoUnitario
+      } else {
+        subtotal = item.cantidadVendida * item.costoUnitario
+      }
+
       totalPagar += subtotal
 
       return {
@@ -366,6 +393,8 @@ router.post('/', async (req, res) => {
         subtotal,
       }
     })
+
+    const idsDetallesVentaPendientes = ventasPendientes.map((item) => item.id)
 
     const liquidacion = await prisma.$transaction(async (tx) => {
       const nuevaLiquidacion = await tx.liquidacion.create({
@@ -391,6 +420,17 @@ router.post('/', async (req, res) => {
           },
         })
       }
+
+      await tx.detalleVenta.updateMany({
+        where: {
+          id: {
+            in: idsDetallesVentaPendientes,
+          },
+        },
+        data: {
+          liquidacionId: nuevaLiquidacion.id,
+        },
+      })
 
       return nuevaLiquidacion
     })
