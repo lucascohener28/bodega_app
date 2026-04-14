@@ -111,7 +111,7 @@ router.get('/resumen', async (_req, res) => {
     const detallesVentaPendientes: DetalleVentaPendiente[] =
       await prisma.detalleVenta.findMany({
         where: {
-          liquidacionId: null,
+          liquidado: false,
         },
         include: {
           producto: {
@@ -123,8 +123,6 @@ router.get('/resumen', async (_req, res) => {
           },
         },
       })
-
-      
 
     const totalVentasHoy = ventasHoy.reduce(
       (acc: number, venta: { total: number }) => acc + venta.total,
@@ -142,41 +140,40 @@ router.get('/resumen', async (_req, res) => {
     )
 
     const deudaAgrupadaPorProducto: Record<
-  number,
-  {
-    cantidadVendida: number
-    costoProveedor: number
-    manejaPack: boolean
-    unidadesPorPack: number | null
-  }
-> = {}
+      number,
+      {
+        cantidadVendida: number
+        costoProveedor: number
+        manejaPack: boolean
+        unidadesPorPack: number | null
+      }
+    > = {}
 
-for (const item of detallesVentaPendientes) {
-  const productoId = item.productoId
+    for (const item of detallesVentaPendientes) {
+      const productoId = item.productoId
 
-  if (!deudaAgrupadaPorProducto[productoId]) {
-    deudaAgrupadaPorProducto[productoId] = {
-      cantidadVendida: 0,
-      costoProveedor: item.producto.costoProveedor,
-      manejaPack: item.producto.manejaPack,
-      unidadesPorPack: item.producto.unidadesPorPack,
+      if (!deudaAgrupadaPorProducto[productoId]) {
+        deudaAgrupadaPorProducto[productoId] = {
+          cantidadVendida: 0,
+          costoProveedor: item.producto.costoProveedor,
+          manejaPack: item.producto.manejaPack,
+          unidadesPorPack: item.producto.unidadesPorPack,
+        }
+      }
+
+      deudaAgrupadaPorProducto[productoId].cantidadVendida += item.cantidad
     }
-  }
 
-  deudaAgrupadaPorProducto[productoId].cantidadVendida += item.cantidad
-}
+    let deudaProveedores = 0
 
-let deudaProveedores = 0
-
-for (const item of Object.values(deudaAgrupadaPorProducto)) {
-  if (item.manejaPack && item.unidadesPorPack && item.unidadesPorPack > 0) {
-    const packs = Math.ceil(item.cantidadVendida / item.unidadesPorPack)
-    deudaProveedores += packs * item.unidadesPorPack * item.costoProveedor
-  } else {
-    deudaProveedores += item.cantidadVendida * item.costoProveedor
-  }
-}
-
+    for (const item of Object.values(deudaAgrupadaPorProducto)) {
+      if (item.manejaPack && item.unidadesPorPack && item.unidadesPorPack > 0) {
+        const packs = Math.ceil(item.cantidadVendida / item.unidadesPorPack)
+        deudaProveedores += packs * item.unidadesPorPack * item.costoProveedor
+      } else {
+        deudaProveedores += item.cantidadVendida * item.costoProveedor
+      }
+    }
 
     const acumuladoPorProducto = new Map<
       number,
@@ -210,7 +207,6 @@ for (const item of Object.values(deudaAgrupadaPorProducto)) {
     const productosMasVendidos = Array.from(acumuladoPorProducto.values())
       .sort((a, b) => b.cantidadVendida - a.cantidadVendida)
       .slice(0, 5)
-
 
     res.json({
       resumen: {

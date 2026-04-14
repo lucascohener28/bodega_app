@@ -3,6 +3,33 @@ import { prisma } from '../config/prisma'
 
 const router = express.Router()
 
+function obtenerRangoPeriodo(periodo: string) {
+  const [anio, mes] = String(periodo).split('-').map(Number)
+
+  if (!anio || !mes) {
+    return null
+  }
+
+  const fechaInicio = new Date(anio, mes - 1, 1)
+  const fechaFin = new Date(anio, mes, 1)
+
+  return { fechaInicio, fechaFin }
+}
+
+function calcularSubtotalPagar(
+  cantidadVendida: number,
+  costoUnitario: number,
+  manejaPack: boolean,
+  unidadesPorPack: number | null
+) {
+  if (manejaPack && unidadesPorPack && unidadesPorPack > 0) {
+    const packs = Math.ceil(cantidadVendida / unidadesPorPack)
+    return packs * unidadesPorPack * costoUnitario
+  }
+
+  return cantidadVendida * costoUnitario
+}
+
 router.get('/', async (_req, res) => {
   try {
     const liquidaciones = await prisma.liquidacion.findMany({
@@ -46,16 +73,15 @@ router.get('/resumen/calculo', async (req, res) => {
       })
     }
 
-    const [anio, mes] = String(periodo).split('-').map(Number)
+    const rango = obtenerRangoPeriodo(String(periodo))
 
-    if (!anio || !mes) {
+    if (!rango) {
       return res.status(400).json({
         error: 'El periodo debe tener formato YYYY-MM',
       })
     }
 
-    const fechaInicio = new Date(anio, mes - 1, 1)
-    const fechaFin = new Date(anio, mes, 1)
+    const { fechaInicio, fechaFin } = rango
 
     const proveedor = await prisma.proveedor.findUnique({
       where: {
@@ -86,7 +112,7 @@ router.get('/resumen/calculo', async (req, res) => {
 
     const ventasPendientes = await prisma.detalleVenta.findMany({
       where: {
-        liquidacionId: null,
+        liquidado: false,
         producto: {
           proveedorId: proveedorIdNumber,
         },
@@ -170,14 +196,12 @@ router.get('/resumen/calculo', async (req, res) => {
     let totalGeneral = 0
 
     const detalles = Object.values(resumenPorProducto).map((item) => {
-      let subtotalPagar = 0
-
-      if (item.manejaPack && item.unidadesPorPack && item.unidadesPorPack > 0) {
-        const packs = Math.ceil(item.cantidadVendida / item.unidadesPorPack)
-        subtotalPagar = packs * item.unidadesPorPack * item.costoUnitario
-      } else {
-        subtotalPagar = item.cantidadVendida * item.costoUnitario
-      }
+      const subtotalPagar = calcularSubtotalPagar(
+        item.cantidadVendida,
+        item.costoUnitario,
+        item.manejaPack,
+        item.unidadesPorPack
+      )
 
       totalGeneral += subtotalPagar
 
@@ -256,16 +280,15 @@ router.post('/', async (req, res) => {
       })
     }
 
-    const [anio, mes] = String(periodo).split('-').map(Number)
+    const rango = obtenerRangoPeriodo(String(periodo))
 
-    if (!anio || !mes) {
+    if (!rango) {
       return res.status(400).json({
         error: 'El periodo debe tener formato YYYY-MM',
       })
     }
 
-    const fechaInicio = new Date(anio, mes - 1, 1)
-    const fechaFin = new Date(anio, mes, 1)
+    const { fechaInicio, fechaFin } = rango
 
     const proveedor = await prisma.proveedor.findUnique({
       where: {
@@ -296,7 +319,7 @@ router.post('/', async (req, res) => {
 
     const ventasPendientes = await prisma.detalleVenta.findMany({
       where: {
-        liquidacionId: null,
+        liquidado: false,
         producto: {
           proveedorId: proveedorIdNumber,
         },
@@ -373,14 +396,12 @@ router.post('/', async (req, res) => {
     let totalPagar = 0
 
     const detallesData = Object.values(resumenPorProducto).map((item) => {
-      let subtotal = 0
-
-      if (item.manejaPack && item.unidadesPorPack && item.unidadesPorPack > 0) {
-        const packs = Math.ceil(item.cantidadVendida / item.unidadesPorPack)
-        subtotal = packs * item.unidadesPorPack * item.costoUnitario
-      } else {
-        subtotal = item.cantidadVendida * item.costoUnitario
-      }
+      const subtotal = calcularSubtotalPagar(
+        item.cantidadVendida,
+        item.costoUnitario,
+        item.manejaPack,
+        item.unidadesPorPack
+      )
 
       totalPagar += subtotal
 
@@ -393,8 +414,6 @@ router.post('/', async (req, res) => {
         subtotal,
       }
     })
-
-    const idsDetallesVentaPendientes = ventasPendientes.map((item) => item.id)
 
     const liquidacion = await prisma.$transaction(async (tx) => {
       const nuevaLiquidacion = await tx.liquidacion.create({
@@ -420,17 +439,6 @@ router.post('/', async (req, res) => {
           },
         })
       }
-
-      await tx.detalleVenta.updateMany({
-        where: {
-          id: {
-            in: idsDetallesVentaPendientes,
-          },
-        },
-        data: {
-          liquidacionId: nuevaLiquidacion.id,
-        },
-      })
 
       return nuevaLiquidacion
     })
@@ -492,19 +500,52 @@ router.patch('/:id/cerrar', async (req, res) => {
       })
     }
 
-    const liquidacionCerrada = await prisma.liquidacion.update({
-      where: { id },
-      data: {
-        cerrada: true,
-      },
-      include: {
-        proveedor: true,
-        detalles: {
-          include: {
-            producto: true,
+    const rango = obtenerRangoPeriodo(liquidacionExistente.periodo)
+
+    if (!rango) {
+      return res.status(400).json({
+        error: 'El período de la liquidación es inválido',
+      })
+    }
+
+    const { fechaInicio, fechaFin } = rango
+    const fechaLiquidacion = new Date()
+
+    const liquidacionCerrada = await prisma.$transaction(async (tx) => {
+      await tx.detalleVenta.updateMany({
+        where: {
+          liquidado: false,
+          producto: {
+            proveedorId: liquidacionExistente.proveedorId,
+          },
+          venta: {
+            fecha: {
+              gte: fechaInicio,
+              lt: fechaFin,
+            },
           },
         },
-      },
+        data: {
+          liquidado: true,
+          liquidadoAt: fechaLiquidacion,
+          liquidacionId: liquidacionExistente.id,
+        },
+      })
+
+      return tx.liquidacion.update({
+        where: { id },
+        data: {
+          cerrada: true,
+        },
+        include: {
+          proveedor: true,
+          detalles: {
+            include: {
+              producto: true,
+            },
+          },
+        },
+      })
     })
 
     res.json(liquidacionCerrada)

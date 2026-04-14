@@ -96,18 +96,20 @@ model Venta {
 }
 
 model DetalleVenta {
-  id              Int       @id @default(autoincrement())
+  id              Int          @id @default(autoincrement())
   cantidad        Int
   precioUnitario  Float
   subtotal        Float
   ventaId         Int
   productoId      Int
   liquidacionId   Int?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  liquidado       Boolean      @default(false)
+  liquidadoAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
-  venta           Venta      @relation(fields: [ventaId], references: [id])
-  producto        Producto   @relation(fields: [productoId], references: [id])
+  venta           Venta        @relation(fields: [ventaId], references: [id])
+  producto        Producto     @relation(fields: [productoId], references: [id])
   liquidacion     Liquidacion? @relation(fields: [liquidacionId], references: [id])
 }
 
