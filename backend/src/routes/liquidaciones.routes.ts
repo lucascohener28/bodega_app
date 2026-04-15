@@ -24,10 +24,14 @@ function calcularSubtotalPagar(
 ) {
   if (manejaPack && unidadesPorPack && unidadesPorPack > 0) {
     const packs = Math.ceil(cantidadVendida / unidadesPorPack)
-    return packs * unidadesPorPack * costoUnitario
+    return packs * itemSafeUnits(unidadesPorPack) * costoUnitario
   }
 
   return cantidadVendida * costoUnitario
+}
+
+function itemSafeUnits(unidadesPorPack: number | null) {
+  return unidadesPorPack && unidadesPorPack > 0 ? unidadesPorPack : 0
 }
 
 router.get('/', async (_req, res) => {
@@ -134,7 +138,8 @@ router.get('/resumen/calculo', async (req, res) => {
         periodo,
         detalles: [],
         totalGeneral: 0,
-        mensaje: 'No hay ventas pendientes de liquidar para ese proveedor en ese período',
+        mensaje:
+          'No hay ventas pendientes de liquidar para ese proveedor en ese período',
       })
     }
 
@@ -337,7 +342,8 @@ router.post('/', async (req, res) => {
 
     if (ventasPendientes.length === 0) {
       return res.status(400).json({
-        error: 'No hay ventas pendientes de liquidar para ese proveedor en ese período',
+        error:
+          'No hay ventas pendientes de liquidar para ese proveedor en ese período',
       })
     }
 
@@ -536,6 +542,7 @@ router.patch('/:id/cerrar', async (req, res) => {
         where: { id },
         data: {
           cerrada: true,
+          fechaCierre: fechaLiquidacion,
         },
         include: {
           proveedor: true,

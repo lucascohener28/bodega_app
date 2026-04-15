@@ -149,6 +149,7 @@ model Liquidacion {
   periodo         String
   totalPagar      Float
   cerrada         Boolean             @default(false)
+  fechaCierre     DateTime?
   observacion     String?
   proveedorId     Int
   createdAt       DateTime            @default(now())
