@@ -1,3 +1,4 @@
+import { generarPDFLiquidacion } from "./lib/pdf";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Bell,
@@ -144,6 +145,78 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatPackBreakdown(unidades: number, unidadesPorPack: number | null) {
+  if (!unidadesPorPack || unidadesPorPack <= 0) {
+    return "—";
+  }
+
+  const packsCompletos = Math.floor(unidades / unidadesPorPack);
+  const unidadesSueltas = unidades % unidadesPorPack;
+
+  if (packsCompletos === 0 && unidadesSueltas === 0) {
+    return "0 packs";
+  }
+
+  if (unidadesSueltas === 0) {
+    return `${packsCompletos} pack${packsCompletos === 1 ? "" : "s"}`;
+  }
+
+  if (packsCompletos === 0) {
+    return `${unidadesSueltas} u.`;
+  }
+
+  return `${packsCompletos} pack${packsCompletos === 1 ? "" : "s"} + ${unidadesSueltas} u.`;
+}
+
+function getPackMetrics(params: {
+  cantidadIngresada: number;
+  cantidadVendida: number;
+  stockActual: number;
+  manejaPack: boolean;
+  unidadesPorPack: number | null;
+}) {
+  const {
+    cantidadIngresada,
+    cantidadVendida,
+    stockActual,
+    manejaPack,
+    unidadesPorPack,
+  } = params;
+
+  if (!manejaPack || !unidadesPorPack || unidadesPorPack <= 0) {
+    return {
+      packLabel: "Por unidad",
+      packsIngresados: "—",
+      packsALiquidar: "—",
+      unidadesLiquidadas: `${cantidadVendida} u.`,
+      packsRestantes: "—",
+      liquidacionPack: "Por unidad",
+      stockPack: "—",
+    };
+  }
+
+  const packsALiquidarNumero = Math.ceil(cantidadVendida / unidadesPorPack);
+  const unidadesLiquidadasNumero = packsALiquidarNumero * unidadesPorPack;
+
+  const packsALiquidar = `${packsALiquidarNumero} pack${
+    packsALiquidarNumero === 1 ? "" : "s"
+  }`;
+
+  const unidadesLiquidadas = `${unidadesLiquidadasNumero} u.`;
+  const packsIngresados = formatPackBreakdown(cantidadIngresada, unidadesPorPack);
+  const packsRestantes = formatPackBreakdown(stockActual, unidadesPorPack);
+
+  return {
+    packLabel: `${unidadesPorPack} u.`,
+    packsIngresados,
+    packsALiquidar,
+    unidadesLiquidadas,
+    packsRestantes,
+    liquidacionPack: `${packsALiquidar} / ${unidadesLiquidadas}`,
+    stockPack: packsRestantes,
+  };
 }
 
 const navigation: NavItem[] = [
@@ -2541,7 +2614,42 @@ function LiquidacionesView() {
     resumen: LiquidacionResumen;
   };
 
+  type LiquidacionHistorial = {
+  id: number;
+  fecha: string;
+  periodo: string;
+  totalPagar: number;
+  cerrada: boolean;
+  fechaCierre: string | null;
+  observacion: string | null;
+  createdAt: string;
+  updatedAt: string;
+  proveedor: {
+    id: number;
+    nombre: string;
+  };
+  detalles: Array<{
+    id: number;
+    cantidadRecibida: number;
+    cantidadVendida: number;
+    cantidadRestante: number;
+    costoUnitario: number;
+    subtotal: number;
+    producto: {
+      id: number;
+      nombre: string;
+      codigo: string;
+      manejaPack: boolean;
+      unidadesPorPack: number | null;
+    };
+  }>;
+};
+
   const currentMonth = new Date().toISOString().slice(0, 7);
+
+  const [activeTab, setActiveTab] = useState<"PENDIENTES" | "HISTORIAL">(
+    "PENDIENTES"
+  );
 
   const [providers, setProviders] = useState<ProveedorOption[]>([]);
   const [periodo, setPeriodo] = useState(currentMonth);
@@ -2550,101 +2658,223 @@ function LiquidacionesView() {
     ProveedorConDeuda[]
   >([]);
 
+    const [historialLiquidaciones, setHistorialLiquidaciones] = useState<
+    LiquidacionHistorial[]
+  >([]);
+
+  const [historialSearch, setHistorialSearch] = useState("");
+  const [historialProveedorFiltro, setHistorialProveedorFiltro] =
+    useState("TODOS");
+  const [historialPeriodoFiltro, setHistorialPeriodoFiltro] = useState("TODOS");
+
   const [selectedProviderId, setSelectedProviderId] = useState<number | null>(
     null
   );
 
-  const [loading, setLoading] = useState(true);
+  const [selectedHistorial, setSelectedHistorial] =
+    useState<LiquidacionHistorial | null>(null);
+
+  const [loadingPendientes, setLoadingPendientes] = useState(true);
+  const [loadingHistorial, setLoadingHistorial] = useState(true);
   const [closingId, setClosingId] = useState<number | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  async function loadProviders() {
+    const data = await fetchJson<ProveedorOption[]>("/proveedores");
+    setProviders(data);
+  }
+
+  async function loadPendientes(
+    providerList: ProveedorOption[],
+    periodoActual: string,
+    selectedId?: number | null
+  ) {
+    if (providerList.length === 0 || !periodoActual) {
+      setLiquidacionesPendientes([]);
+      setSelectedProviderId(null);
+      setLoadingPendientes(false);
+      return;
+    }
+
+    setLoadingPendientes(true);
+
+    try {
+      const results = await Promise.all(
+        providerList.map(async (provider) => {
+          try {
+            const resumen = await fetchJson<LiquidacionResumen>(
+              `/liquidaciones/resumen/calculo?proveedorId=${provider.id}&periodo=${periodoActual}`
+            );
+
+            if (!resumen.detalles || resumen.detalles.length === 0) {
+              return null;
+            }
+
+            if (!resumen.totalGeneral || resumen.totalGeneral <= 0) {
+              return null;
+            }
+
+            return {
+              proveedor: provider,
+              resumen,
+            };
+          } catch (_err) {
+            return null;
+          }
+        })
+      );
+
+      const pendientes = results.filter(
+        (item): item is ProveedorConDeuda => item !== null
+      );
+
+      setLiquidacionesPendientes(pendientes);
+
+      if (pendientes.length === 0) {
+        setSelectedProviderId(null);
+      } else {
+        const existeSeleccionado = pendientes.some(
+          (item) => item.proveedor.id === selectedId
+        );
+
+        if (existeSeleccionado && selectedId) {
+          setSelectedProviderId(selectedId);
+        } else {
+          setSelectedProviderId(pendientes[0].proveedor.id);
+        }
+      }
+    } finally {
+      setLoadingPendientes(false);
+    }
+  }
+
+  async function loadHistorial() {
+    setLoadingHistorial(true);
+
+    try {
+      const data = await fetchJson<LiquidacionHistorial[]>("/liquidaciones");
+
+            const cerradas = data
+        .filter((item) => item.cerrada)
+        .sort(
+          (a, b) =>
+            new Date(b.fechaCierre ?? b.updatedAt).getTime() -
+            new Date(a.fechaCierre ?? a.updatedAt).getTime()
+        );
+      setHistorialLiquidaciones(cerradas);
+    } finally {
+      setLoadingHistorial(false);
+    }
+  }
+
+  async function refreshAll(options?: {
+    keepSelectedProviderId?: number | null;
+    keepModalOpenId?: number | null;
+  }) {
+    try {
+      setError(null);
+
+      let providerList = providers;
+
+      if (providerList.length === 0) {
+        providerList = await fetchJson<ProveedorOption[]>("/proveedores");
+        setProviders(providerList);
+      }
+
+      await Promise.all([
+        loadPendientes(
+          providerList,
+          periodo,
+          options?.keepSelectedProviderId ?? selectedProviderId
+        ),
+        loadHistorial(),
+      ]);
+
+      if (options?.keepModalOpenId) {
+        const data = await fetchJson<LiquidacionHistorial[]>("/liquidaciones");
+        const encontrada =
+          data.find(
+            (item) => item.id === options.keepModalOpenId && item.cerrada
+          ) ?? null;
+        setSelectedHistorial(encontrada);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("No se pudieron cargar los datos de liquidaciones");
+    }
+  }
+
   useEffect(() => {
-    async function loadProviders() {
+    async function init() {
       try {
-        const data = await fetchJson<ProveedorOption[]>("/proveedores");
-        setProviders(data);
+        setError(null);
+        const providerList = await fetchJson<ProveedorOption[]>("/proveedores");
+        setProviders(providerList);
+
+        await Promise.all([
+          loadPendientes(providerList, periodo, null),
+          loadHistorial(),
+        ]);
       } catch (err) {
         console.error(err);
-        setError("No se pudieron cargar los proveedores");
+        setError("No se pudieron cargar las liquidaciones");
+        setLoadingPendientes(false);
+        setLoadingHistorial(false);
       }
     }
 
-    loadProviders();
+    init();
   }, []);
 
   useEffect(() => {
-    async function loadPendientesPorProveedor() {
-      try {
-        if (providers.length === 0 || !periodo) {
-          setLiquidacionesPendientes([]);
-          setSelectedProviderId(null);
-          setLoading(false);
-          return;
-        }
+    if (providers.length === 0) return;
 
-        setLoading(true);
-        setError(null);
-        setSuccess(null);
-
-        const results = await Promise.all(
-          providers.map(async (provider) => {
-            try {
-              const resumen = await fetchJson<LiquidacionResumen>(
-                `/liquidaciones/resumen/calculo?proveedorId=${provider.id}&periodo=${periodo}`
-              );
-
-              if (!resumen.detalles || resumen.detalles.length === 0) {
-                return null;
-              }
-
-              if (!resumen.totalGeneral || resumen.totalGeneral <= 0) {
-                return null;
-              }
-
-              return {
-                proveedor: provider,
-                resumen,
-              };
-            } catch (err) {
-              return null;
-            }
-          })
-        );
-
-        const pendientes = results.filter(
-          (item): item is ProveedorConDeuda => item !== null
-        );
-
-        setLiquidacionesPendientes(pendientes);
-
-        if (pendientes.length === 0) {
-          setSelectedProviderId(null);
-        } else {
-          const existeSeleccionado = pendientes.some(
-            (item) => item.proveedor.id === selectedProviderId
-          );
-
-          if (!existeSeleccionado) {
-            setSelectedProviderId(pendientes[0].proveedor.id);
-          }
-        }
-      } catch (err) {
-        console.error(err);
-        setError("No se pudieron cargar las liquidaciones pendientes");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadPendientesPorProveedor();
-  }, [providers, periodo]);
+    loadPendientes(providers, periodo, selectedProviderId).catch((err) => {
+      console.error(err);
+      setError("No se pudieron cargar las liquidaciones pendientes");
+      setLoadingPendientes(false);
+    });
+  }, [periodo]);
 
   const selectedLiquidacion =
     liquidacionesPendientes.find(
       (item) => item.proveedor.id === selectedProviderId
     ) ?? null;
+
+      const historialProviderOptions = [
+    "TODOS",
+    ...Array.from(
+      new Set(historialLiquidaciones.map((item) => item.proveedor.nombre))
+    ).sort((a, b) => a.localeCompare(b)),
+  ];
+
+  const historialPeriodoOptions = [
+    "TODOS",
+    ...Array.from(
+      new Set(historialLiquidaciones.map((item) => item.periodo))
+    ).sort((a, b) => b.localeCompare(a)),
+  ];
+
+  const historialFiltrado = historialLiquidaciones.filter((item) => {
+    const search = historialSearch.trim().toLowerCase();
+
+    const matchesSearch =
+      search === "" ||
+      item.proveedor.nombre.toLowerCase().includes(search) ||
+      String(item.id).includes(search);
+
+    const matchesProveedor =
+      historialProveedorFiltro === "TODOS" ||
+      item.proveedor.nombre === historialProveedorFiltro;
+
+    const matchesPeriodo =
+      historialPeriodoFiltro === "TODOS" ||
+      item.periodo === historialPeriodoFiltro;
+
+    return matchesSearch && matchesProveedor && matchesPeriodo;
+  });
 
   async function handleCerrarLiquidacion(proveedorId: number) {
     try {
@@ -2686,25 +2916,152 @@ function LiquidacionesView() {
 
       setSuccess("Liquidación cerrada correctamente");
 
-      const pendientesActualizados = liquidacionesPendientes.filter(
-        (item) => item.proveedor.id !== proveedorId
-      );
+      await refreshAll({
+        keepSelectedProviderId: proveedorId,
+      });
 
-      setLiquidacionesPendientes(pendientesActualizados);
-
-      if (selectedProviderId === proveedorId) {
-        setSelectedProviderId(
-          pendientesActualizados.length > 0
-            ? pendientesActualizados[0].proveedor.id
-            : null
-        );
-      }
+      setActiveTab("HISTORIAL");
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Error al cerrar la liquidación");
     } finally {
       setClosingId(null);
     }
+  }
+
+  function buildPrintableHtml(liquidacion: LiquidacionHistorial) {
+    const rows = liquidacion.detalles
+      .map(
+        (item) => `
+          <tr>
+            <td>${item.producto.nombre}</td>
+            <td>${item.producto.codigo}</td>
+            <td>${item.cantidadRecibida}</td>
+            <td>${item.cantidadVendida}</td>
+            <td>${item.cantidadRestante}</td>
+            <td>${formatGs(item.costoUnitario)}</td>
+            <td>${formatGs(item.subtotal)}</td>
+          </tr>
+        `
+      )
+      .join("");
+
+    return `
+      <html>
+        <head>
+          <title>Liquidación #${liquidacion.id}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              padding: 24px;
+              color: #0f172a;
+            }
+            h1, h2, h3, p {
+              margin: 0 0 12px 0;
+            }
+            .header {
+              margin-bottom: 24px;
+            }
+            .meta {
+              margin-bottom: 24px;
+              line-height: 1.6;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 16px;
+            }
+            th, td {
+              border: 1px solid #cbd5e1;
+              padding: 10px;
+              text-align: left;
+              font-size: 14px;
+            }
+            th {
+              background: #f1f5f9;
+            }
+            .total {
+              margin-top: 24px;
+              font-size: 20px;
+              font-weight: bold;
+            }
+            .note {
+              margin-top: 20px;
+              color: #475569;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Liquidación cerrada #${liquidacion.id}</h1>
+            <h3>${liquidacion.proveedor.nombre}</h3>
+          </div>
+
+          <div class="meta">
+            <p><strong>Período:</strong> ${liquidacion.periodo}</p>
+            <p><strong>Fecha de registro:</strong> ${formatDateTime(
+              liquidacion.createdAt
+            )}</p>
+            <p><strong>Fecha de cierre:</strong> ${formatDateTime(
+              liquidacion.fechaCierre ?? liquidacion.updatedAt
+            )}</p>
+            <p><strong>Observación:</strong> ${
+              liquidacion.observacion?.trim() || "Sin observaciones"
+            }</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Código</th>
+                <th>Recibido</th>
+                <th>Vendido</th>
+                <th>Restante</th>
+                <th>Costo unitario</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+
+          <p class="total">Total pagado: ${formatGs(liquidacion.totalPagar)}</p>
+          <p class="note">Para guardar en PDF, usa la opción "Guardar como PDF" desde la ventana de impresión del navegador.</p>
+        </body>
+      </html>
+    `;
+  }
+
+  function handlePrintLiquidacion(liquidacion: LiquidacionHistorial) {
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+
+    if (!printWindow) {
+      setError("El navegador bloqueó la ventana de impresión");
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(buildPrintableHtml(liquidacion));
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
+  function handleDownloadPdf(liquidacion: LiquidacionHistorial) {
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+
+    if (!printWindow) {
+      setError("El navegador bloqueó la ventana para guardar PDF");
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(buildPrintableHtml(liquidacion));
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   }
 
   return (
@@ -2718,8 +3075,8 @@ function LiquidacionesView() {
             Liquidaciones
           </h2>
           <p className="mt-2 max-w-2xl text-slate-500">
-            Aquí ves automáticamente las deudas pendientes por proveedor y puedes
-            cerrar la liquidación cuando quieras.
+            Gestiona liquidaciones pendientes y consulta el historial de cierres
+            realizados de forma clara y ordenada.
           </p>
         </div>
 
@@ -2730,6 +3087,40 @@ function LiquidacionesView() {
             onChange={(e) => setPeriodo(e.target.value)}
             className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-300"
           />
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-slate-200 bg-white p-3 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => {
+              setActiveTab("PENDIENTES");
+              setError(null);
+              setSuccess(null);
+            }}
+            className={`rounded-[20px] px-5 py-4 text-sm font-semibold transition ${
+              activeTab === "PENDIENTES"
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            Pendientes
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("HISTORIAL");
+              setError(null);
+              setSuccess(null);
+            }}
+            className={`rounded-[20px] px-5 py-4 text-sm font-semibold transition ${
+              activeTab === "HISTORIAL"
+                ? "bg-slate-950 text-white shadow-lg"
+                : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            Historial
+          </button>
         </div>
       </section>
 
@@ -2745,153 +3136,508 @@ function LiquidacionesView() {
         </div>
       )}
 
-      {loading ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-          <p className="text-sm text-slate-500">Cargando liquidaciones pendientes...</p>
-        </section>
-      ) : liquidacionesPendientes.length === 0 ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-          <p className="text-sm text-slate-500">
-            No hay deudas pendientes para el período seleccionado.
-          </p>
-        </section>
-      ) : (
-        <div className="grid gap-6 xl:grid-cols-[0.9fr_1.4fr]">
-          <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-            <div className="mb-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
-                Proveedores con deuda
+      {activeTab === "PENDIENTES" && (
+        <>
+          {loadingPendientes ? (
+            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+              <p className="text-sm text-slate-500">
+                Cargando liquidaciones pendientes...
               </p>
-              <h3 className="mt-2 text-2xl font-bold text-slate-950">
-                Pendientes del período
-              </h3>
-            </div>
+            </section>
+          ) : liquidacionesPendientes.length === 0 ? (
+            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+              <p className="text-sm text-slate-500">
+                No hay deudas pendientes para el período seleccionado.
+              </p>
+            </section>
+          ) : (
+            <div className="grid gap-6 xl:grid-cols-[0.9fr_1.4fr]">
+              <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+                <div className="mb-5">
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                    Proveedores con deuda
+                  </p>
+                  <h3 className="mt-2 text-2xl font-bold text-slate-950">
+                    Pendientes del período
+                  </h3>
+                </div>
 
-            <div className="space-y-4">
-              {liquidacionesPendientes.map((item) => {
-                const isActive = item.proveedor.id === selectedProviderId;
+                <div className="space-y-4">
+                  {liquidacionesPendientes.map((item) => {
+                    const isActive = item.proveedor.id === selectedProviderId;
 
-                return (
-                  <button
-                    key={item.proveedor.id}
-                    onClick={() => {
-                      setSelectedProviderId(item.proveedor.id);
-                      setError(null);
-                      setSuccess(null);
-                    }}
-                    className={`w-full rounded-[22px] border p-4 text-left transition ${
-                      isActive
-                        ? "border-blue-200 bg-blue-50"
-                        : "border-slate-200 bg-slate-50/70 hover:bg-slate-100"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
+                    return (
+                      <button
+                        key={item.proveedor.id}
+                        onClick={() => {
+                          setSelectedProviderId(item.proveedor.id);
+                          setError(null);
+                          setSuccess(null);
+                        }}
+                        className={`w-full rounded-[22px] border p-4 text-left transition ${
+                          isActive
+                            ? "border-blue-200 bg-blue-50"
+                            : "border-slate-200 bg-slate-50/70 hover:bg-slate-100"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900">
+                              {item.proveedor.nombre}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {item.resumen.detalles.length} productos pendientes
+                            </p>
+                          </div>
+
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                            {formatGs(item.resumen.totalGeneral)}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+                {!selectedLiquidacion ? (
+                  <p className="text-sm text-slate-500">
+                    Selecciona un proveedor para ver el detalle.
+                  </p>
+                ) : (
+                  <>
+                    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <p className="font-semibold text-slate-900">
-                          {item.proveedor.nombre}
+                        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                          Detalle de liquidación
                         </p>
+                        <h3 className="mt-2 text-2xl font-bold text-slate-950">
+                          {selectedLiquidacion.proveedor.nombre}
+                        </h3>
                         <p className="mt-1 text-sm text-slate-500">
-                          {item.resumen.detalles.length} productos pendientes
+                          Período {periodo}
                         </p>
                       </div>
 
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-                        {formatGs(item.resumen.totalGeneral)}
-                      </span>
+                      <button
+                        onClick={() =>
+                          handleCerrarLiquidacion(
+                            selectedLiquidacion.proveedor.id
+                          )
+                        }
+                        disabled={
+                          closingId === selectedLiquidacion.proveedor.id
+                        }
+                        className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {closingId === selectedLiquidacion.proveedor.id
+                          ? "Cerrando..."
+                          : "Cerrar liquidación"}
+                      </button>
                     </div>
-                  </button>
-                );
-              })}
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[760px] border-separate border-spacing-y-3">
+                        <thead>
+                          <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                            <th className="pb-2">Producto</th>
+                            <th className="pb-2">Ingresado</th>
+                            <th className="pb-2">Vendido</th>
+                            <th className="pb-2">Stock</th>
+                            <th className="pb-2">Costo</th>
+                            <th className="pb-2">Total</th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {selectedLiquidacion.resumen.detalles.map((item) => (
+                            <tr
+                              key={item.productoId}
+                              className="rounded-2xl bg-slate-50"
+                            >
+                              <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">
+                                {item.nombreProducto}
+                              </td>
+                              <td className="px-4 py-4 text-slate-700">
+                                {item.cantidadIngresada}
+                              </td>
+                              <td className="px-4 py-4 text-slate-700">
+                                {item.cantidadVendida}
+                              </td>
+                              <td className="px-4 py-4 text-slate-700">
+                                {item.stockActual}
+                              </td>
+                              <td className="px-4 py-4 text-slate-700">
+                                {formatGs(item.costoUnitario)}
+                              </td>
+                              <td className="rounded-r-2xl px-4 py-4 font-semibold text-slate-950">
+                                {formatGs(item.subtotalPagar)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
+                      <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
+                        Total a pagar
+                      </p>
+                      <h3 className="mt-2 text-4xl font-bold tracking-tight">
+                        {formatGs(selectedLiquidacion.resumen.totalGeneral)}
+                      </h3>
+                      <p className="mt-2 text-sm text-slate-400">
+                        Deuda pendiente actual de este proveedor
+                      </p>
+                    </div>
+                  </>
+                )}
+              </section>
             </div>
-          </section>
+          )}
+        </>
+      )}
 
-          <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-            {!selectedLiquidacion ? (
+            {activeTab === "HISTORIAL" && (
+        <>
+          {loadingHistorial ? (
+            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
               <p className="text-sm text-slate-500">
-                Selecciona un proveedor para ver el detalle.
+                Cargando historial de liquidaciones...
               </p>
-            ) : (
-              <>
-                <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
-                      Detalle de liquidación
-                    </p>
-                    <h3 className="mt-2 text-2xl font-bold text-slate-950">
-                      {selectedLiquidacion.proveedor.nombre}
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Período {periodo}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      handleCerrarLiquidacion(selectedLiquidacion.proveedor.id)
-                    }
-                    disabled={closingId === selectedLiquidacion.proveedor.id}
-                    className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {closingId === selectedLiquidacion.proveedor.id
-                      ? "Cerrando..."
-                      : "Cerrar liquidación"}
-                  </button>
+            </section>
+          ) : historialLiquidaciones.length === 0 ? (
+            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+              <p className="text-sm text-slate-500">
+                Todavía no hay liquidaciones cerradas para mostrar.
+              </p>
+            </section>
+          ) : (
+            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+              <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-950">
+                    Historial cerrado
+                  </p>
+                  <h3 className="mt-2 text-2xl font-bold text-slate-950">
+                    Liquidaciones registradas
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Busca, filtra y revisa cada liquidación cerrada sin cargar la
+                    pantalla con demasiado detalle.
+                  </p>
                 </div>
 
+                <div className="rounded-[22px] bg-slate-50 px-4 py-3 text-right">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Resultados
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-slate-950">
+                    {historialFiltrado.length}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <input
+                  type="text"
+                  value={historialSearch}
+                  onChange={(e) => setHistorialSearch(e.target.value)}
+                  placeholder="Buscar por proveedor o número..."
+                  className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white xl:col-span-2"
+                />
+
+                <select
+                  value={historialProveedorFiltro}
+                  onChange={(e) => setHistorialProveedorFiltro(e.target.value)}
+                  className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+                >
+                  {historialProviderOptions.map((proveedor) => (
+                    <option key={proveedor} value={proveedor}>
+                      {proveedor === "TODOS"
+                        ? "Todos los proveedores"
+                        : proveedor}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={historialPeriodoFiltro}
+                  onChange={(e) => setHistorialPeriodoFiltro(e.target.value)}
+                  className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+                >
+                  {historialPeriodoOptions.map((periodoOption) => (
+                    <option key={periodoOption} value={periodoOption}>
+                      {periodoOption === "TODOS"
+                        ? "Todos los períodos"
+                        : periodoOption}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {historialFiltrado.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                  No hay liquidaciones que coincidan con los filtros actuales.
+                </div>
+              ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] border-separate border-spacing-y-3">
+                  <table className="w-full min-w-[980px] border-separate border-spacing-y-3">
                     <thead>
                       <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        <th className="pb-2">Producto</th>
-                        <th className="pb-2">Ingresado</th>
-                        <th className="pb-2">Vendido</th>
-                        <th className="pb-2">Stock</th>
-                        <th className="pb-2">Costo</th>
-                        <th className="pb-2">Total</th>
+                        <th className="pb-2">Liquidación</th>
+                        <th className="pb-2">Proveedor</th>
+                        <th className="pb-2">Período</th>
+                        <th className="pb-2">Fecha cierre</th>
+                        <th className="pb-2">Productos</th>
+                        <th className="pb-2">Total pagado</th>
+                        <th className="pb-2">Acción</th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      {selectedLiquidacion.resumen.detalles.map((item) => (
-                        <tr key={item.productoId} className="rounded-2xl bg-slate-50">
+                      {historialFiltrado.map((item) => (
+                        <tr key={item.id} className="rounded-2xl bg-slate-50">
                           <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">
-                            {item.nombreProducto}
+                            #{item.id}
                           </td>
+
                           <td className="px-4 py-4 text-slate-700">
-                            {item.cantidadIngresada}
+                            {item.proveedor.nombre}
                           </td>
+
                           <td className="px-4 py-4 text-slate-700">
-                            {item.cantidadVendida}
+                            {item.periodo}
                           </td>
+
                           <td className="px-4 py-4 text-slate-700">
-                            {item.stockActual}
+                            {formatDateTime(item.fechaCierre ?? item.updatedAt)}
                           </td>
+
                           <td className="px-4 py-4 text-slate-700">
-                            {formatGs(item.costoUnitario)}
+                            {item.detalles.length}
                           </td>
-                          <td className="rounded-r-2xl px-4 py-4 font-semibold text-slate-950">
-                            {formatGs(item.subtotalPagar)}
+
+                          <td className="px-4 py-4 font-semibold text-slate-950">
+                            {formatGs(item.totalPagar)}
+                          </td>
+
+                          <td className="rounded-r-2xl px-4 py-4">
+                            <button
+                              onClick={() => setSelectedHistorial(item)}
+                              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            >
+                              Ver detalle
+                            </button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+              )}
+            </section>
+          )}
+        </>
+      )}
 
-                <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
-                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
-                    Total a pagar
+      {selectedHistorial && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-6">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-[32px] bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  Detalle de liquidación
+                </p>
+                <h3 className="mt-2 text-3xl font-bold text-slate-950">
+                  #{selectedHistorial.id} · {selectedHistorial.proveedor.nombre}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Período {selectedHistorial.periodo}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setSelectedHistorial(null)}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="max-h-[calc(92vh-88px)] overflow-y-auto px-6 py-6">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Proveedor
                   </p>
-                  <h3 className="mt-2 text-4xl font-bold tracking-tight">
-                    {formatGs(selectedLiquidacion.resumen.totalGeneral)}
-                  </h3>
-                  <p className="mt-2 text-sm text-slate-400">
-                    Deuda pendiente actual de este proveedor
+                  <p className="mt-2 text-lg font-bold text-slate-950">
+                    {selectedHistorial.proveedor.nombre}
                   </p>
                 </div>
-              </>
-            )}
-          </section>
+
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Fecha de cierre
+                  </p>
+                                    <p className="mt-2 text-lg font-bold text-slate-950">
+                    {formatDateTime(
+                      selectedHistorial.fechaCierre ??
+                        selectedHistorial.updatedAt
+                    )}
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Productos
+                  </p>
+                  <p className="mt-2 text-lg font-bold text-slate-950">
+                    {selectedHistorial.detalles.length}
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Total pagado
+                  </p>
+                  <p className="mt-2 text-lg font-bold text-slate-950">
+                    {formatGs(selectedHistorial.totalPagar)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-[24px] border border-slate-200 bg-white p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Observación
+                </p>
+                <p className="mt-2 text-sm text-slate-700">
+                  {selectedHistorial.observacion?.trim() || "Sin observaciones"}
+                </p>
+              </div>
+
+             <div className="mt-6 overflow-x-auto">
+  <table className="w-full min-w-[1500px] table-fixed border-separate border-spacing-y-3">
+    <thead>
+      <tr className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+        <th className="w-[220px] pb-2 text-left">Producto</th>
+        <th className="w-[120px] pb-2 text-left">Código</th>
+        <th className="w-[90px] pb-2 text-center">Ingresado</th>
+        <th className="w-[150px] pb-2 text-center">Packs ingresados</th>
+        <th className="w-[90px] pb-2 text-center">Vendido</th>
+        <th className="w-[90px] pb-2 text-center">Pack</th>
+        <th className="w-[130px] pb-2 text-center">Packs a liquidar</th>
+        <th className="w-[135px] pb-2 text-center">Unidades liquidadas</th>
+        <th className="w-[140px] pb-2 text-center">Packs restantes</th>
+        <th className="w-[110px] pb-2 text-center">Costo unitario</th>
+        <th className="w-[120px] pb-2 text-right">Subtotal</th>
+      </tr>
+    </thead>
+
+                      <tbody>
+                        {selectedHistorial.detalles.map((item) => {
+                    const packInfo = getPackMetrics({
+                      cantidadIngresada: item.cantidadRecibida,
+                      cantidadVendida: item.cantidadVendida,
+                      stockActual: item.cantidadRestante,
+                      manejaPack: item.producto.manejaPack,
+                      unidadesPorPack: item.producto.unidadesPorPack,
+                    });
+
+                    return (
+                      <tr key={item.id} className="align-middle rounded-2xl bg-slate-50">
+                        <td className="rounded-l-2xl px-4 py-4 text-left font-semibold text-slate-900">
+                          {item.producto.nombre}
+                        </td>
+
+                        <td className="px-4 py-4 text-left text-slate-700">
+                          {item.producto.codigo}
+                        </td>
+
+                        <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
+                          {item.cantidadRecibida} u.
+                        </td>
+
+                        <td className="px-4 py-4 text-center text-slate-700">
+                          {packInfo.packsIngresados}
+                        </td>
+
+                        <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
+                          {item.cantidadVendida} u.
+                        </td>
+
+                        <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
+                          {packInfo.packLabel}
+                        </td>
+
+                        <td className="px-4 py-4 text-center font-medium text-blue-700">
+                          {packInfo.packsALiquidar}
+                        </td>
+
+                        <td className="px-4 py-4 text-center font-medium text-slate-900 whitespace-nowrap">
+                          {packInfo.unidadesLiquidadas}
+                        </td>
+
+                        <td className="px-4 py-4 text-center text-slate-700">
+                          {packInfo.packsRestantes}
+                        </td>
+
+                        <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
+                          {formatGs(item.costoUnitario)}
+                        </td>
+
+                        <td className="rounded-r-2xl px-4 py-4 text-right font-semibold text-slate-950 whitespace-nowrap">
+                          {formatGs(item.subtotal)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                      </tbody>
+                    </table>
+              </div>
+
+<div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+  Los productos configurados por pack se liquidan redondeando hacia arriba al
+  pack completo. Por eso las unidades liquidadas y el total pueden ser mayores
+  que las unidades vendidas reales.
+</div>
+
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-[24px] bg-slate-950 p-5 text-white">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
+                    Total liquidado
+                  </p>
+                  <h3 className="mt-2 text-4xl font-bold tracking-tight">
+                    {formatGs(selectedHistorial.totalPagar)}
+                  </h3>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => handlePrintLiquidacion(selectedHistorial)}
+                    className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+                  >
+                    Imprimir
+                  </button>
+
+                  <button
+                    onClick={() => generarPDFLiquidacion(selectedHistorial)}
+                    className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  >
+                    Descargar PDF
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedHistorial(null)}
+                    className="rounded-2xl border border-white/20 bg-transparent px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
