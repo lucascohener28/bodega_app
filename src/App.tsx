@@ -961,308 +961,456 @@ function SalesView() {
   const totalItems = cart.reduce((acc, item) => acc + item.qty, 0);
 
   return (
-  <div className="space-y-6">
-    <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
-          Operación diaria
-        </p>
-        <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
-          Nueva Venta
-        </h2>
-        <p className="mt-2 text-sm text-slate-500 sm:text-base">
-          Pantalla rápida de mostrador para registrar ventas de la bodega.
-        </p>
-      </div>
-    </section>
-
-    <div className="grid gap-4 2xl:grid-cols-[1.35fr_0.82fr]">
-      <section className="hidden rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5 lg:p-6 2xl:block">
-  <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
-        Resumen
-      </p>
-      <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl">
-        Venta actual
-      </h3>
-    </div>
-
-    <span className="w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-      Caja abierta
-    </span>
-  </div>
-
-  <div className="space-y-4">
-    {cart.length === 0 ? (
-      <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
-        Aún no agregaste productos a la venta.
-      </div>
-    ) : (
-      cart.map((item) => {
-        const subtotal = item.unitPrice * item.qty;
-
-        return (
-          <div
-            key={item.id}
-            className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="font-semibold text-slate-900">{item.name}</p>
-                <p className="text-sm text-slate-500">
-                  {formatGs(item.unitPrice)} por unidad
-                </p>
-              </div>
-
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-                x{item.qty}
-              </span>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => decreaseQty(item.id)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700"
-                >
-                  -
-                </button>
-                <button
-                  onClick={() => increaseQty(item.id)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700"
-                >
-                  +
-                </button>
-              </div>
-
-              <p className="text-base font-bold text-slate-950 sm:text-lg">
-                {formatGs(subtotal)}
-              </p>
-            </div>
-          </div>
-        );
-      })
-    )}
-  </div>
-
-  <div className="mt-6 border-t border-slate-200 pt-6">
-    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 sm:text-sm sm:tracking-[0.2em]">
-      Método de pago
-    </p>
-
-    <div className="grid grid-cols-2 gap-3">
-      {payments.map((payment) => {
-        const paymentValue = payment.toUpperCase();
-
-        return (
-          <button
-            key={payment}
-            onClick={() => setSelectedPayment(paymentValue)}
-            className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-              selectedPayment === paymentValue
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
-                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            {payment}
-          </button>
-        );
-      })}
-    </div>
-
-    {saleError && (
-      <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-        {saleError}
-      </div>
-    )}
-
-    {saleSuccess && (
-      <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-        {saleSuccess}
-      </div>
-    )}
-  </div>
-
-  <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
-    <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
-      Total general
-    </p>
-    <h3 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-      {formatGs(totalGeneral)}
-    </h3>
-    <p className="mt-2 text-sm text-slate-400">
-      {totalItems} productos en la venta actual
-    </p>
-  </div>
-
-  <div className="mt-6 grid gap-3">
-    <button
-      onClick={handleConfirmSale}
-      disabled={submittingSale}
-      className="rounded-2xl bg-blue-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {submittingSale ? "Guardando venta..." : "Confirmar venta"}
-    </button>
-
-    <button
-      onClick={() => {
-        setCart([]);
-        setSaleError(null);
-        setSaleSuccess(null);
-        setSelectedPayment("EFECTIVO");
-      }}
-      className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-    >
-      Cancelar venta
-    </button>
-  </div>
-</section>
-
-      <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5 lg:p-6">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
-              Resumen
-            </p>
-            <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl">
-              Venta actual
-            </h3>
-          </div>
-
-          <span className="w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-            Caja abierta
-          </span>
-        </div>
-
-        <div className="space-y-4">
-          {cart.length === 0 ? (
-            <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
-              Aún no agregaste productos a la venta.
-            </div>
-          ) : (
-            cart.map((item) => {
-              const subtotal = item.unitPrice * item.qty;
-
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-slate-900">{item.name}</p>
-                      <p className="text-sm text-slate-500">
-                        {formatGs(item.unitPrice)} por unidad
-                      </p>
-                    </div>
-
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-                      x{item.qty}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => decreaseQty(item.id)}
-                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700"
-                      >
-                        -
-                      </button>
-                      <button
-                        onClick={() => increaseQty(item.id)}
-                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700"
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    <p className="text-base font-bold text-slate-950 sm:text-lg">
-                      {formatGs(subtotal)}
-                    </p>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <div className="mt-6 border-t border-slate-200 pt-6">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 sm:text-sm sm:tracking-[0.2em]">
-            Método de pago
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+            Operación diaria
           </p>
-
-          <div className="grid grid-cols-2 gap-3">
-            {payments.map((payment) => {
-              const paymentValue = payment.toUpperCase();
-
-              return (
-                <button
-                  key={payment}
-                  onClick={() => setSelectedPayment(paymentValue)}
-                  className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-                    selectedPayment === paymentValue
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
-                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {payment}
-                </button>
-              );
-            })}
-          </div>
-
-          {saleError && (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-              {saleError}
-            </div>
-          )}
-
-          {saleSuccess && (
-            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {saleSuccess}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
-            Total general
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
+            Nueva Venta
+          </h2>
+          <p className="mt-2 text-sm text-slate-500 sm:text-base">
+            Pantalla rápida de mostrador para registrar ventas de la bodega.
           </p>
-          <h3 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-            {formatGs(totalGeneral)}
-          </h3>
-          <p className="mt-2 text-sm text-slate-400">
-            {totalItems} productos en la venta actual
-          </p>
-        </div>
-
-        <div className="mt-6 grid gap-3">
-          <button
-            onClick={handleConfirmSale}
-            disabled={submittingSale}
-            className="rounded-2xl bg-blue-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submittingSale ? "Guardando venta..." : "Confirmar venta"}
-          </button>
-
-          <button
-            onClick={() => {
-              setCart([]);
-              setSaleError(null);
-              setSaleSuccess(null);
-              setSelectedPayment("EFECTIVO");
-            }}
-            className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            Cancelar venta
-          </button>
         </div>
       </section>
+
+      <div className="grid gap-4 2xl:grid-cols-[1.35fr_0.82fr]">
+        <section className="rounded-[24px] border border-slate-200 bg-white p-4 pb-24 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5 sm:pb-28 lg:p-6 2xl:pb-6">
+          <div className="mb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+              Operación diaria
+            </p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl">
+              Nueva Venta
+            </h2>
+            <p className="mt-2 text-sm text-slate-500 sm:text-base">
+              Pantalla rápida de mostrador para registrar ventas de la bodega.
+            </p>
+          </div>
+
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar productos por nombre o código..."
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+            />
+
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white lg:w-auto"
+            >
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category === "TODAS" ? "Todas las categorías" : category}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {loadingProducts && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+              Cargando productos...
+            </div>
+          )}
+
+          {errorProducts && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-sm text-red-600">
+              {errorProducts}
+            </div>
+          )}
+
+          {!loadingProducts && !errorProducts && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {filteredProducts.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                  No hay productos que coincidan con la búsqueda o el filtro.
+                </div>
+              ) : (
+                filteredProducts.map((product) => (
+                  <button
+                    key={product.id}
+                    onClick={() => addToCart(product)}
+                    disabled={product.stockActual <= 0}
+                    className={`rounded-[24px] border p-4 text-left transition ${
+                      product.stockActual <= 0
+                        ? "cursor-not-allowed border-slate-200 bg-slate-100 opacity-60"
+                        : "border-slate-200 bg-white hover:-translate-y-0.5 hover:shadow-md"
+                    }`}
+                  >
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                        {product.categoria.nombre}
+                      </span>
+                      <span
+                        className={`text-xs font-medium ${
+                          product.stockActual <= 0
+                            ? "text-red-500"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {product.stockActual <= 0
+                          ? "Sin stock"
+                          : `Stock: ${product.stockActual}`}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-semibold text-slate-900">
+                      {product.nombre}
+                    </h3>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      {product.codigo}
+                    </p>
+
+                    <p className="mt-3 text-2xl font-bold tracking-tight text-blue-700">
+                      {formatGs(product.precioVenta)}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className="hidden rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5 lg:p-6 2xl:block">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+                Resumen
+              </p>
+              <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl">
+                Venta actual
+              </h3>
+            </div>
+
+            <span className="w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+              Caja abierta
+            </span>
+          </div>
+
+          <div className="space-y-4">
+            {cart.length === 0 ? (
+              <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
+                Aún no agregaste productos a la venta.
+              </div>
+            ) : (
+              cart.map((item) => {
+                const subtotal = item.unitPrice * item.qty;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900">
+                          {item.name}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          {formatGs(item.unitPrice)} por unidad
+                        </p>
+                      </div>
+
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                        x{item.qty}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => decreaseQty(item.id)}
+                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700"
+                        >
+                          -
+                        </button>
+                        <button
+                          onClick={() => increaseQty(item.id)}
+                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <p className="text-base font-bold text-slate-950 sm:text-lg">
+                        {formatGs(subtotal)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="mt-6 border-t border-slate-200 pt-6">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 sm:text-sm sm:tracking-[0.2em]">
+              Método de pago
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              {payments.map((payment) => {
+                const paymentValue = payment.toUpperCase();
+
+                return (
+                  <button
+                    key={payment}
+                    onClick={() => setSelectedPayment(paymentValue)}
+                    className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                      selectedPayment === paymentValue
+                        ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {payment}
+                  </button>
+                );
+              })}
+            </div>
+
+            {saleError && (
+              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {saleError}
+              </div>
+            )}
+
+            {saleSuccess && (
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {saleSuccess}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
+            <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
+              Total general
+            </p>
+            <h3 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
+              {formatGs(totalGeneral)}
+            </h3>
+            <p className="mt-2 text-sm text-slate-400">
+              {totalItems} productos en la venta actual
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-3">
+            <button
+              onClick={handleConfirmSale}
+              disabled={submittingSale}
+              className="rounded-2xl bg-blue-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submittingSale ? "Guardando venta..." : "Confirmar venta"}
+            </button>
+
+            <button
+              onClick={() => {
+                setCart([]);
+                setSaleError(null);
+                setSaleSuccess(null);
+                setSelectedPayment("EFECTIVO");
+              }}
+              className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Cancelar venta
+            </button>
+          </div>
+        </section>
+      </div>
+
+{!mobileCartOpen && (
+<div
+  className="fixed bottom-4 left-1/2 z-[80] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 2xl:hidden"
+  style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
+>
+  <button
+    onClick={() => setMobileCartOpen(true)}
+    className="flex w-full items-center justify-between rounded-[22px] bg-slate-950 px-4 py-4 text-left text-white shadow-[0_18px_40px_rgba(15,23,42,0.28)]"
+  >
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+        Venta actual
+      </p>
+      <p className="mt-1 text-sm font-semibold">
+        {totalItems} producto{totalItems === 1 ? "" : "s"}
+      </p>
     </div>
-  </div>
-);
+
+    <div className="text-right">
+      <p className="text-lg font-bold">{formatGs(totalGeneral)}</p>
+      <p className="text-xs text-slate-400">
+        {cart.length === 0 ? "Ver carrito" : "Confirmar"}
+      </p>
+    </div>
+  </button>
+</div>
+)}
+
+
+      {mobileCartOpen && (
+        <div className="fixed inset-0 z-40 2xl:hidden">
+          <div
+            className="absolute inset-0 bg-slate-950/45"
+            onClick={() => setMobileCartOpen(false)}
+          />
+
+          <div className="absolute bottom-0 left-0 right-0 max-h-[88vh] overflow-y-auto rounded-t-[28px] bg-white p-4 shadow-2xl">
+            <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-slate-200" />
+
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+                  Resumen
+                </p>
+                <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
+                  Venta actual
+                </h3>
+              </div>
+
+              <button
+                onClick={() => setMobileCartOpen(false)}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {cart.length === 0 ? (
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
+                  Aún no agregaste productos a la venta.
+                </div>
+              ) : (
+                cart.map((item) => {
+                  const subtotal = item.unitPrice * item.qty;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900">
+                            {item.name}
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            {formatGs(item.unitPrice)} por unidad
+                          </p>
+                        </div>
+
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                          x{item.qty}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => decreaseQty(item.id)}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700"
+                          >
+                            -
+                          </button>
+                          <button
+                            onClick={() => increaseQty(item.id)}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        <p className="text-base font-bold text-slate-950">
+                          {formatGs(subtotal)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="mt-6 border-t border-slate-200 pt-6">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Método de pago
+              </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                {payments.map((payment) => {
+                  const paymentValue = payment.toUpperCase();
+
+                  return (
+                    <button
+                      key={payment}
+                      onClick={() => setSelectedPayment(paymentValue)}
+                      className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                        selectedPayment === paymentValue
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {payment}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {saleError && (
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {saleError}
+                </div>
+              )}
+
+              {saleSuccess && (
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {saleSuccess}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
+                Total general
+              </p>
+              <h3 className="mt-2 text-3xl font-bold tracking-tight">
+                {formatGs(totalGeneral)}
+              </h3>
+              <p className="mt-2 text-sm text-slate-400">
+                {totalItems} productos en la venta actual
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-3 pb-4">
+              <button
+                onClick={handleConfirmSale}
+                disabled={submittingSale}
+                className="rounded-2xl bg-blue-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submittingSale ? "Guardando venta..." : "Confirmar venta"}
+              </button>
+
+              <button
+                onClick={() => {
+                  setCart([]);
+                  setSaleError(null);
+                  setSaleSuccess(null);
+                  setSelectedPayment("EFECTIVO");
+                  setMobileCartOpen(false);
+                }}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelar venta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function StockView() {
@@ -1326,7 +1474,7 @@ function StockView() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-28 2xl:pb-0">
       <section className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
@@ -3883,7 +4031,7 @@ export default function App() {
 
   return (
   <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#dbeafe,_#f8fafc_35%,_#f8fafc)] p-2 sm:p-4 md:p-6">
-    <div className="mx-auto flex min-h-[calc(100vh-1rem)] max-w-[1680px] gap-0 rounded-[24px] border border-white/50 bg-white/60 p-2 shadow-[0_25px_80px_rgba(15,23,42,0.10)] backdrop-blur sm:min-h-[calc(100vh-2rem)] sm:gap-4 sm:rounded-[30px] sm:p-3 md:gap-6 md:rounded-[36px] md:p-4">
+    <div className="mx-auto flex min-h-[calc(100vh-1rem)] max-w-[1680px] gap-0 rounded-[24px] border border-white/50 bg-white/60 p-2 shadow-[0_25px_80px_rgba(15,23,42,0.10)] sm:min-h-[calc(100vh-2rem)] sm:gap-4 sm:rounded-[30px] sm:p-3 md:gap-6 md:rounded-[36px] md:p-4">
       <Sidebar
         active={active}
         onChange={setActive}
