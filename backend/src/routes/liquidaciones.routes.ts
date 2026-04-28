@@ -198,23 +198,26 @@ router.get('/resumen/calculo', async (req, res) => {
       resumenPorProducto[productoId].cantidadVendida += item.cantidad
     }
 
-    let totalGeneral = 0
+    const detalles = Object.values(resumenPorProducto)
+      .filter((item) => item.cantidadVendida > 0)
+      .map((item) => {
+        const subtotalPagar = calcularSubtotalPagar(
+          item.cantidadVendida,
+          item.costoUnitario,
+          item.manejaPack,
+          item.unidadesPorPack
+        )
 
-    const detalles = Object.values(resumenPorProducto).map((item) => {
-      const subtotalPagar = calcularSubtotalPagar(
-        item.cantidadVendida,
-        item.costoUnitario,
-        item.manejaPack,
-        item.unidadesPorPack
-      )
+        return {
+          ...item,
+          subtotalPagar,
+        }
+      })
 
-      totalGeneral += subtotalPagar
-
-      return {
-        ...item,
-        subtotalPagar,
-      }
-    })
+    const totalGeneral = detalles.reduce(
+      (acc, item) => acc + item.subtotalPagar,
+      0
+    )
 
     res.json({
       proveedor,
@@ -399,27 +402,30 @@ router.post('/', async (req, res) => {
       resumenPorProducto[productoId].cantidadVendida += item.cantidad
     }
 
-    let totalPagar = 0
+    const detallesData = Object.values(resumenPorProducto)
+      .filter((item) => item.cantidadVendida > 0)
+      .map((item) => {
+        const subtotal = calcularSubtotalPagar(
+          item.cantidadVendida,
+          item.costoUnitario,
+          item.manejaPack,
+          item.unidadesPorPack
+        )
 
-    const detallesData = Object.values(resumenPorProducto).map((item) => {
-      const subtotal = calcularSubtotalPagar(
-        item.cantidadVendida,
-        item.costoUnitario,
-        item.manejaPack,
-        item.unidadesPorPack
-      )
+        return {
+          productoId: item.productoId,
+          cantidadRecibida: item.cantidadRecibida,
+          cantidadVendida: item.cantidadVendida,
+          cantidadRestante: item.cantidadRestante,
+          costoUnitario: item.costoUnitario,
+          subtotal,
+        }
+      })
 
-      totalPagar += subtotal
-
-      return {
-        productoId: item.productoId,
-        cantidadRecibida: item.cantidadRecibida,
-        cantidadVendida: item.cantidadVendida,
-        cantidadRestante: item.cantidadRestante,
-        costoUnitario: item.costoUnitario,
-        subtotal,
-      }
-    })
+    const totalPagar = detallesData.reduce(
+      (acc, item) => acc + item.subtotal,
+      0
+    )
 
     const liquidacion = await prisma.$transaction(async (tx) => {
       const nuevaLiquidacion = await tx.liquidacion.create({

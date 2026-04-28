@@ -266,4 +266,102 @@ router.patch('/:id/estado', async (req, res) => {
   }
 })
 
+router.patch('/:id/ajustar-stock', async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+
+    if (isNaN(id)) {
+      return res.status(400).json({
+        error: 'ID de producto inválido',
+      })
+    }
+
+    const { tipoAjuste, cantidad, observacion } = req.body
+
+    if (!tipoAjuste || cantidad === undefined) {
+      return res.status(400).json({
+        error: 'Debes enviar tipoAjuste y cantidad',
+      })
+    }
+
+    const cantidadNumero = Number(cantidad)
+
+    if (isNaN(cantidadNumero) || cantidadNumero < 0) {
+      return res.status(400).json({
+        error: 'La cantidad debe ser un número válido mayor o igual a 0',
+      })
+    }
+
+    const productoExistente = await prisma.producto.findUnique({
+      where: { id },
+      include: {
+        categoria: true,
+        proveedor: true,
+      },
+    })
+
+    if (!productoExistente) {
+      return res.status(404).json({
+        error: 'Producto no encontrado',
+      })
+    }
+
+    let nuevoStock = productoExistente.stockActual
+
+    if (tipoAjuste === 'SUMAR') {
+      nuevoStock = productoExistente.stockActual + cantidadNumero
+    } else if (tipoAjuste === 'RESTAR') {
+      nuevoStock = productoExistente.stockActual - cantidadNumero
+    } else if (tipoAjuste === 'FIJAR') {
+      nuevoStock = cantidadNumero
+    } else {
+      return res.status(400).json({
+        error: 'Tipo de ajuste inválido',
+      })
+    }
+
+    if (nuevoStock < 0) {
+      return res.status(400).json({
+        error: 'El stock no puede quedar en negativo',
+      })
+    }
+
+    const diferencia = nuevoStock - productoExistente.stockActual
+
+    const resultado = await prisma.$transaction(async (tx) => {
+      const productoActualizado = await tx.producto.update({
+        where: { id },
+        data: {
+          stockActual: nuevoStock,
+        },
+        include: {
+          categoria: true,
+          proveedor: true,
+        },
+      })
+
+      await tx.movimientoInventario.create({
+        data: {
+          tipoMovimiento: 'AJUSTE',
+          cantidad: diferencia,
+          observacion:
+            observacion && String(observacion).trim() !== ''
+              ? String(observacion).trim()
+              : `Ajuste manual de stock (${tipoAjuste})`,
+          productoId: id,
+        },
+      })
+
+      return productoActualizado
+    })
+
+    res.json(resultado)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({
+      error: 'Error al ajustar el stock',
+    })
+  }
+})
+
 export default router

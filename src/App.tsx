@@ -1222,34 +1222,33 @@ function SalesView() {
         </section>
       </div>
 
-{!mobileCartOpen && (
-<div
-  className="fixed bottom-4 left-1/2 z-[80] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 2xl:hidden"
-  style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
->
-  <button
-    onClick={() => setMobileCartOpen(true)}
-    className="flex w-full items-center justify-between rounded-[22px] bg-slate-950 px-4 py-4 text-left text-white shadow-[0_18px_40px_rgba(15,23,42,0.28)]"
-  >
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-        Venta actual
-      </p>
-      <p className="mt-1 text-sm font-semibold">
-        {totalItems} producto{totalItems === 1 ? "" : "s"}
-      </p>
-    </div>
+      {!mobileCartOpen && (
+        <div
+          className="fixed bottom-4 left-1/2 z-[80] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 2xl:hidden"
+          style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
+          <button
+            onClick={() => setMobileCartOpen(true)}
+            className="flex w-full items-center justify-between rounded-[22px] bg-slate-950 px-4 py-4 text-left text-white shadow-[0_18px_40px_rgba(15,23,42,0.28)]"
+          >
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Venta actual
+              </p>
+              <p className="mt-1 text-sm font-semibold">
+                {totalItems} producto{totalItems === 1 ? "" : "s"}
+              </p>
+            </div>
 
-    <div className="text-right">
-      <p className="text-lg font-bold">{formatGs(totalGeneral)}</p>
-      <p className="text-xs text-slate-400">
-        {cart.length === 0 ? "Ver carrito" : "Confirmar"}
-      </p>
-    </div>
-  </button>
-</div>
-)}
-
+            <div className="text-right">
+              <p className="text-lg font-bold">{formatGs(totalGeneral)}</p>
+              <p className="text-xs text-slate-400">
+                {cart.length === 0 ? "Ver carrito" : "Confirmar"}
+              </p>
+            </div>
+          </button>
+        </div>
+      )}
 
       {mobileCartOpen && (
         <div className="fixed inset-0 z-40 2xl:hidden">
@@ -1413,10 +1412,27 @@ function SalesView() {
   );
 }
 
+
 function StockView() {
   const [products, setProducts] = useState<ProductoVenta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("TODAS");
+  const [selectedStatus, setSelectedStatus] = useState("TODOS");
+
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [adjustingProduct, setAdjustingProduct] = useState<ProductoVenta | null>(
+    null
+  );
+  const [adjustType, setAdjustType] = useState<"SUMAR" | "RESTAR" | "FIJAR">(
+    "SUMAR"
+  );
+  const [adjustQuantity, setAdjustQuantity] = useState("");
+  const [adjustReason, setAdjustReason] = useState("");
+  const [adjustingStock, setAdjustingStock] = useState(false);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadProducts() {
@@ -1452,6 +1468,11 @@ function StockView() {
     0
   );
 
+  const categoryOptions = [
+    "TODAS",
+    ...Array.from(new Set(products.map((p) => p.categoria.nombre))),
+  ];
+
   const getStatus = (currentStock: number, minStock: number) => {
     if (currentStock <= Math.floor(minStock * 0.7)) {
       return {
@@ -1473,24 +1494,159 @@ function StockView() {
     };
   };
 
+  const filteredProducts = products.filter((item) => {
+    const matchesSearch =
+      item.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.codigo.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesCategory =
+      selectedCategory === "TODAS" ||
+      item.categoria.nombre === selectedCategory;
+
+    const status = getStatus(item.stockActual, item.stockMinimo);
+
+    const matchesStatus =
+      selectedStatus === "TODOS" || status.label.toUpperCase() === selectedStatus;
+
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
+
+  function openAdjustModal(product: ProductoVenta) {
+    setAdjustingProduct(product);
+    setAdjustType("SUMAR");
+    setAdjustQuantity("");
+    setAdjustReason("");
+    setAdjustError(null);
+    setAdjustModalOpen(true);
+  }
+
+  function closeAdjustModal() {
+    setAdjustModalOpen(false);
+    setAdjustingProduct(null);
+    setAdjustType("SUMAR");
+    setAdjustQuantity("");
+    setAdjustReason("");
+    setAdjustError(null);
+  }
+
+  async function handleConfirmAdjustStock() {
+    try {
+      if (!adjustingProduct) return;
+
+      const cantidad = Number(adjustQuantity);
+
+      if (isNaN(cantidad) || cantidad < 0) {
+        setAdjustError("Ingresa una cantidad válida");
+        return;
+      }
+
+      setAdjustingStock(true);
+      setAdjustError(null);
+
+      const response = await fetch(
+        `http://localhost:3001/productos/${adjustingProduct.id}/ajustar-stock`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tipoAjuste: adjustType,
+            cantidad,
+            observacion: adjustReason,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo ajustar el stock");
+      }
+
+      setProducts((prev) => prev.map((item) => (item.id === data.id ? data : item)));
+
+      closeAdjustModal();
+    } catch (err: any) {
+      console.error(err);
+      setAdjustError(err.message || "No se pudo ajustar el stock");
+    } finally {
+      setAdjustingStock(false);
+    }
+  }
+  
+  function handleExportStock() {
+  if (filteredProducts.length === 0) {
+    return;
+  }
+
+  const rows = filteredProducts.map((item) => {
+    const status = getStatus(item.stockActual, item.stockMinimo);
+
+    return {
+      Producto: item.nombre,
+      Codigo: item.codigo,
+      Categoria: item.categoria.nombre,
+      Proveedor: item.proveedor?.nombre ?? "Sin proveedor",
+      StockActual: item.stockActual,
+      StockMinimo: item.stockMinimo,
+      Estado: status.label,
+      PrecioVenta: item.precioVenta,
+      CostoProveedor: item.costoProveedor,
+    };
+  });
+
+  const headers = Object.keys(rows[0]);
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) =>
+      headers
+        .map((header) => {
+          const value = row[header as keyof typeof row];
+          const escaped = String(value).replace(/"/g, '""');
+          return `"${escaped}"`;
+        })
+        .join(",")
+    ),
+  ].join("\n");
+
+  const blob = new Blob([csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const fecha = new Date().toISOString().slice(0, 10);
+
+  link.href = url;
+  link.setAttribute("download", `stock_${fecha}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
   return (
-    <div className="space-y-6 pb-28 2xl:pb-0">
-      <section className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
             Inventario
           </p>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
             Gestión de Stock
           </h2>
-          <p className="mt-2 max-w-2xl text-slate-500">
+          <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
             Control general del inventario, alertas de reposición y visión rápida
             del estado actual.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <button className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+        <div className="grid w-full gap-3 sm:flex sm:w-auto">
+          <button
+            onClick={handleExportStock}
+            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
             Exportar
           </button>
           <button className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700">
@@ -1504,7 +1660,7 @@ function StockView() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-500">
             Stock crítico
           </p>
-          <h3 className="mt-4 text-5xl font-bold tracking-tight text-red-700">
+          <h3 className="mt-4 text-4xl font-bold tracking-tight text-red-700 sm:text-5xl">
             {String(criticalCount).padStart(2, "0")}
           </h3>
           <p className="mt-2 text-sm text-red-500">Requiere acción inmediata</p>
@@ -1514,17 +1670,17 @@ function StockView() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-600">
             Stock bajo
           </p>
-          <h3 className="mt-4 text-5xl font-bold tracking-tight text-amber-700">
+          <h3 className="mt-4 text-4xl font-bold tracking-tight text-amber-700 sm:text-5xl">
             {String(lowStockCount).padStart(2, "0")}
           </h3>
           <p className="mt-2 text-sm text-amber-600">Programar reposición</p>
         </div>
 
-        <div className="rounded-[24px] border border-emerald-100 bg-emerald-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+        <div className="rounded-[24px] border border-emerald-100 bg-emerald-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] md:col-span-2 xl:col-span-1">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">
             Valor inventario
           </p>
-          <h3 className="mt-4 text-4xl font-bold tracking-tight text-emerald-700">
+          <h3 className="mt-4 text-3xl font-bold tracking-tight text-emerald-700 sm:text-4xl">
             {formatGs(inventoryValue)}
           </h3>
           <p className="mt-2 text-sm text-emerald-600">
@@ -1533,21 +1689,43 @@ function StockView() {
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-3">
+      <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
+        <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:flex xl:flex-wrap">
             <input
               type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar producto..."
-              className="h-12 min-w-[240px] rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white md:min-w-[240px]"
             />
-            <button className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-100">
-              Todos los proveedores
-            </button>
+
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white md:min-w-[220px]"
+            >
+              {categoryOptions.map((category) => (
+                <option key={category} value={category}>
+                  {category === "TODAS" ? "Todas las categorías" : category}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white md:min-w-[220px]"
+            >
+              <option value="TODOS">Todos los estados</option>
+              <option value="CRÍTICO">Crítico</option>
+              <option value="BAJO">Bajo</option>
+              <option value="ÓPTIMO">Óptimo</option>
+            </select>
           </div>
 
           <span className="text-sm font-medium text-slate-500">
-            {products.length} productos encontrados
+            {filteredProducts.length} productos cargados
           </span>
         </div>
 
@@ -1563,65 +1741,277 @@ function StockView() {
           </div>
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] border-separate border-spacing-y-3">
-            <thead>
-              <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                <th className="pb-2">Producto</th>
-                <th className="pb-2">Proveedor</th>
-                <th className="pb-2">Stock actual</th>
-                <th className="pb-2">Stock mínimo</th>
-                <th className="pb-2">Estado</th>
-                <th className="pb-2">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((item) => {
-                const status = getStatus(item.stockActual, item.stockMinimo);
+        {!loading && !error && (
+          <>
+            <div className="space-y-3 md:hidden">
+              {filteredProducts.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                  No hay productos que coincidan con los filtros.
+                </div>
+              ) : (
+                filteredProducts.map((item) => {
+                  const status = getStatus(item.stockActual, item.stockMinimo);
 
-                return (
-                  <tr key={item.id} className="rounded-2xl bg-slate-50">
-                    <td className="rounded-l-2xl px-4 py-4">
-                      <div>
-                        <p className="font-semibold text-slate-900">{item.nombre}</p>
-                        <p className="text-sm text-slate-500">
-                          Código: {item.codigo}
-                        </p>
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900">{item.nombre}</p>
+                          <p className="text-sm text-slate-500">{item.codigo}</p>
+                        </div>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${status.className}`}
+                        >
+                          {status.label}
+                        </span>
                       </div>
-                    </td>
 
-                    <td className="px-4 py-4 text-slate-600">
-                      {item.proveedor?.nombre ?? "Sin proveedor"}
-                    </td>
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                            Categoría
+                          </p>
+                          <p className="mt-1 text-slate-700">{item.categoria.nombre}</p>
+                        </div>
 
-                    <td className="px-4 py-4 font-semibold text-slate-900">
-                      {item.stockActual}
-                    </td>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                            Proveedor
+                          </p>
+                          <p className="mt-1 text-slate-700">
+                            {item.proveedor?.nombre ?? "Sin proveedor"}
+                          </p>
+                        </div>
 
-                    <td className="px-4 py-4 text-slate-600">
-                      {item.stockMinimo}
-                    </td>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                            Stock actual
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {item.stockActual}
+                          </p>
+                        </div>
 
-                    <td className="px-4 py-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${status.className}`}
-                      >
-                        {status.label}
-                      </span>
-                    </td>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                            Stock mínimo
+                          </p>
+                          <p className="mt-1 text-slate-700">{item.stockMinimo}</p>
+                        </div>
+                      </div>
 
-                    <td className="rounded-r-2xl px-4 py-4">
-                      <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
-                        Ajustar
-                      </button>
-                    </td>
+                      <div className="mt-4">
+                        <button
+                          onClick={() => openAdjustModal(item)}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Ajustar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[900px] border-separate border-spacing-y-3">
+                <thead>
+                  <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    <th className="pb-2">Producto</th>
+                    <th className="pb-2">Proveedor</th>
+                    <th className="pb-2">Stock actual</th>
+                    <th className="pb-2">Stock mínimo</th>
+                    <th className="pb-2">Estado</th>
+                    <th className="pb-2">Acción</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {filteredProducts.map((item) => {
+                    const status = getStatus(item.stockActual, item.stockMinimo);
+
+                    return (
+                      <tr key={item.id} className="rounded-2xl bg-slate-50">
+                        <td className="rounded-l-2xl px-4 py-4">
+                          <div>
+                            <p className="font-semibold text-slate-900">{item.nombre}</p>
+                            <p className="text-sm text-slate-500">
+                              Código: {item.codigo}
+                            </p>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-4 text-slate-600">
+                          {item.proveedor?.nombre ?? "Sin proveedor"}
+                        </td>
+
+                        <td className="px-4 py-4 font-semibold text-slate-900">
+                          {item.stockActual}
+                        </td>
+
+                        <td className="px-4 py-4 text-slate-600">{item.stockMinimo}</td>
+
+                        <td className="px-4 py-4">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${status.className}`}
+                          >
+                            {status.label}
+                          </span>
+                        </td>
+
+                        <td className="rounded-r-2xl px-4 py-4">
+                          <button
+                            onClick={() => openAdjustModal(item)}
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Ajustar
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </section>
+
+      {adjustModalOpen && adjustingProduct && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-4">
+          <div className="absolute inset-0" onClick={closeAdjustModal} />
+
+          <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-white p-4 shadow-2xl sm:max-w-2xl sm:rounded-[32px] sm:p-6">
+            <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-slate-200 sm:hidden" />
+
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                  Inventario
+                </p>
+                <h3 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
+                  Ajustar stock
+                </h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  {adjustingProduct.nombre} · Stock actual:{" "}
+                  <span className="font-semibold text-slate-900">
+                    {adjustingProduct.stockActual}
+                  </span>
+                </p>
+              </div>
+
+              <button
+                onClick={closeAdjustModal}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Tipo de ajuste
+                </label>
+                <select
+                  value={adjustType}
+                  onChange={(e) =>
+                    setAdjustType(e.target.value as "SUMAR" | "RESTAR" | "FIJAR")
+                  }
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-blue-300 focus:bg-white"
+                >
+                  <option value="SUMAR">Sumar stock</option>
+                  <option value="RESTAR">Restar stock</option>
+                  <option value="FIJAR">Fijar stock exacto</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Cantidad
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={adjustQuantity}
+                  onChange={(e) => setAdjustQuantity(e.target.value)}
+                  placeholder={
+                    adjustType === "FIJAR"
+                      ? "Ej.: 25"
+                      : adjustType === "SUMAR"
+                      ? "Ej.: 5"
+                      : "Ej.: 3"
+                  }
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Motivo
+                </label>
+                <textarea
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  placeholder="Ej.: diferencia en conteo, rotura, merma, corrección manual..."
+                  className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+                />
+              </div>
+            </div>
+
+            {adjustError && (
+              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {adjustError}
+              </div>
+            )}
+
+            <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
+                Resultado estimado
+              </p>
+              <h3 className="mt-2 text-3xl font-bold tracking-tight">
+                {(() => {
+                  const cantidad = Number(adjustQuantity) || 0;
+
+                  if (adjustType === "SUMAR") {
+                    return adjustingProduct.stockActual + cantidad;
+                  }
+
+                  if (adjustType === "RESTAR") {
+                    return Math.max(adjustingProduct.stockActual - cantidad, 0);
+                  }
+
+                  return cantidad;
+                })()}
+              </h3>
+              <p className="mt-2 text-sm text-slate-400">
+                Stock resultante después del ajuste
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:flex">
+              <button
+                onClick={handleConfirmAdjustStock}
+                disabled={adjustingStock}
+                className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {adjustingStock ? "Guardando ajuste..." : "Confirmar ajuste"}
+              </button>
+
+              <button
+                onClick={closeAdjustModal}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1647,6 +2037,7 @@ function ProductsView() {
   const [updatingProduct, setUpdatingProduct] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [updateSuccess, setUpdateSuccess] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   const [newProduct, setNewProduct] = useState({
     nombre: "",
@@ -1809,27 +2200,28 @@ function ProductsView() {
   }
 
   function openEditForm(product: ProductoVenta) {
-    setEditingProductId(product.id);
-    setUpdateError(null);
-    setUpdateSuccess(null);
+  setEditingProductId(product.id);
+  setUpdateError(null);
+  setUpdateSuccess(null);
+  setEditModalOpen(true);
 
-    setEditProduct({
-      id: product.id,
-      nombre: product.nombre,
-      codigo: product.codigo,
-      precioVenta: String(product.precioVenta),
-      costoProveedor: String(product.costoProveedor),
-      stockMinimo: String(product.stockMinimo),
-      categoriaId: String(product.categoria.id),
-      proveedorId: String(product.proveedor.id),
-      activo: product.activo,
-      manejaPack: product.manejaPack,
-      unidadesPorPack:
-        product.unidadesPorPack !== null
-          ? String(product.unidadesPorPack)
-          : "",
-    });
-  }
+  setEditProduct({
+    id: product.id,
+    nombre: product.nombre,
+    codigo: product.codigo,
+    precioVenta: String(product.precioVenta),
+    costoProveedor: String(product.costoProveedor),
+    stockMinimo: String(product.stockMinimo),
+    categoriaId: String(product.categoria.id),
+    proveedorId: String(product.proveedor.id),
+    activo: product.activo,
+    manejaPack: product.manejaPack,
+    unidadesPorPack:
+      product.unidadesPorPack !== null
+        ? String(product.unidadesPorPack)
+        : "",
+  });
+}
 
   async function handleUpdateProduct() {
     try {
@@ -1895,6 +2287,8 @@ function ProductsView() {
 
       setUpdateSuccess("Producto actualizado correctamente");
       await loadProductsData();
+      setEditModalOpen(false);
+      setEditingProductId(null);
     } catch (err: any) {
       console.error(err);
       setUpdateSuccess(null);
@@ -1906,35 +2300,34 @@ function ProductsView() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
-            Catálogo
-          </p>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
-            Productos
-          </h2>
-          <p className="mt-2 max-w-2xl text-slate-500">
-            Administración del catálogo principal de la bodega con precios, stock,
-            proveedor y configuración de packs.
-          </p>
-        </div>
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+  <div className="min-w-0">
+    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+      Catálogo
+    </p>
+    <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
+      Productos
+    </h2>
+    <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
+      Administración del catálogo principal de la bodega con precios, stock,
+      proveedor y configuración de packs.
+    </p>
+  </div>
 
-        <button
-          onClick={() => {
-            setShowCreateForm((prev) => !prev);
-            setCreateError(null);
-            setCreateSuccess(null);
-          }}
-          className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
-        >
-          {showCreateForm ? "Cerrar formulario" : "Nuevo producto"}
-        </button>
-      </section>
+  <button
+    onClick={() => {
+      setShowCreateForm((prev) => !prev);
+      setCreateError(null);
+      setCreateSuccess(null);
+    }}
+    className="w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 sm:w-auto"
+  >
+    {showCreateForm ? "Cerrar formulario" : "Nuevo producto"}
+  </button>
+</section>
 
       {showCreateForm && (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-          <div className="mb-6">
+    <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">          <div className="mb-6">
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
               Alta de producto
             </p>
@@ -1943,7 +2336,7 @@ function ProductsView() {
             </h3>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
   <input
     type="text"
     value={newProduct.nombre}
@@ -2099,7 +2492,7 @@ function ProductsView() {
             </div>
           )}
 
-          <div className="mt-6 flex gap-3">
+          <div className="mt-6 grid gap-3 sm:flex">
             <button
               onClick={handleCreateProduct}
               disabled={creatingProduct}
@@ -2117,198 +2510,6 @@ function ProductsView() {
               className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Cancelar
-            </button>
-          </div>
-        </section>
-      )}
-
-      {editingProductId !== null && (
-        <section className="rounded-[28px] border border-amber-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-          <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-600">
-              Edición
-            </p>
-            <h3 className="mt-3 text-2xl font-bold text-slate-950">
-              Editar producto
-            </h3>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <input
-              type="text"
-              value={editProduct.nombre}
-              onChange={(e) =>
-                setEditProduct((prev) => ({ ...prev, nombre: e.target.value }))
-              }
-              placeholder="Nombre"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
-            />
-
-            <input
-              type="text"
-              value={editProduct.codigo}
-              onChange={(e) =>
-                setEditProduct((prev) => ({ ...prev, codigo: e.target.value }))
-              }
-              placeholder="Código"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
-            />
-
-            <input
-              type="number"
-              min="0"
-              value={editProduct.precioVenta}
-              onChange={(e) =>
-                setEditProduct((prev) => ({
-                  ...prev,
-                  precioVenta: e.target.value,
-                }))
-              }
-              placeholder="Precio de venta"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
-            />
-
-            <input
-              type="number"
-              min="0"
-              value={editProduct.costoProveedor}
-              onChange={(e) =>
-                setEditProduct((prev) => ({
-                  ...prev,
-                  costoProveedor: e.target.value,
-                }))
-              }
-              placeholder="Costo proveedor"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
-            />
-
-            <input
-              type="number"
-              min="0"
-              value={editProduct.stockMinimo}
-              onChange={(e) =>
-                setEditProduct((prev) => ({
-                  ...prev,
-                  stockMinimo: e.target.value,
-                }))
-              }
-              placeholder="Stock mínimo"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
-            />
-
-            <select
-              value={editProduct.categoriaId}
-              onChange={(e) =>
-                setEditProduct((prev) => ({
-                  ...prev,
-                  categoriaId: e.target.value,
-                }))
-              }
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
-            >
-              <option value="">Seleccionar categoría</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.nombre}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={editProduct.proveedorId}
-              onChange={(e) =>
-                setEditProduct((prev) => ({
-                  ...prev,
-                  proveedorId: e.target.value,
-                }))
-              }
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
-            >
-              <option value="">Seleccionar proveedor</option>
-              {providers.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.nombre}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={editProduct.activo ? "true" : "false"}
-              onChange={(e) =>
-                setEditProduct((prev) => ({
-                  ...prev,
-                  activo: e.target.value === "true",
-                }))
-              }
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
-            >
-              <option value="true">Activo</option>
-              <option value="false">Inactivo</option>
-            </select>
-
-            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={editProduct.manejaPack}
-                onChange={(e) =>
-                  setEditProduct((prev) => ({
-                    ...prev,
-                    manejaPack: e.target.checked,
-                    unidadesPorPack: e.target.checked
-                      ? prev.unidadesPorPack || "1"
-                      : "",
-                  }))
-                }
-              />
-              Maneja pack
-            </label>
-
-            <input
-              type="number"
-              min="1"
-              value={editProduct.unidadesPorPack}
-              onChange={(e) =>
-                setEditProduct((prev) => ({
-                  ...prev,
-                  unidadesPorPack: e.target.value,
-                }))
-              }
-              placeholder="Unidades por pack"
-              disabled={!editProduct.manejaPack}
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-            />
-          </div>
-
-          {updateError && (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-              {updateError}
-            </div>
-          )}
-
-          {updateSuccess && (
-            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {updateSuccess}
-            </div>
-          )}
-
-          <div className="mt-6 flex gap-3">
-            <button
-              onClick={handleUpdateProduct}
-              disabled={updatingProduct}
-              className="rounded-2xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {updatingProduct ? "Actualizando..." : "Guardar cambios"}
-            </button>
-
-            <button
-              onClick={() => {
-                setEditingProductId(null);
-                setUpdateError(null);
-                setUpdateSuccess(null);
-              }}
-              className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Cancelar edición
             </button>
           </div>
         </section>
@@ -2371,106 +2572,438 @@ function ProductsView() {
           </div>
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1280px] border-separate border-spacing-y-3">
-            <thead>
-              <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                <th className="pb-2">Producto</th>
-                <th className="pb-2">Categoría</th>
-                <th className="pb-2">Proveedor</th>
-                <th className="pb-2">Precio venta</th>
-                <th className="pb-2">Costo proveedor</th>
-                <th className="pb-2">Stock</th>
-                <th className="pb-2">Mínimo</th>
-                <th className="pb-2">Pack</th>
-                <th className="pb-2">Estado</th>
-                <th className="pb-2">Acción</th>
-              </tr>
-            </thead>
+        <>
+      <div className="space-y-3 md:hidden">
+        {filteredProducts.map((product) => {
+          const lowStock = product.stockActual <= product.stockMinimo;
 
-            <tbody>
-              {filteredProducts.map((product) => {
-                const lowStock = product.stockActual <= product.stockMinimo;
+      return (
+        <div
+          key={product.id}
+          className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-semibold text-slate-900">{product.nombre}</p>
+              <p className="text-sm text-slate-500">{product.codigo}</p>
+            </div>
 
-                return (
-                  <tr key={product.id} className="rounded-2xl bg-slate-50">
-                    <td className="rounded-l-2xl px-4 py-4">
-                      <div>
-                        <p className="font-semibold text-slate-900">
-                          {product.nombre}
-                        </p>
-                        <p className="text-sm text-slate-500">
-                          Código: {product.codigo}
-                        </p>
-                      </div>
-                    </td>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                product.activo
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-200 text-slate-700"
+              }`}
+            >
+              {product.activo ? "Activo" : "Inactivo"}
+            </span>
+          </div>
 
-                    <td className="px-4 py-4 text-slate-600">
-                      {product.categoria.nombre}
-                    </td>
+          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Categoría
+              </p>
+              <p className="mt-1 text-slate-700">{product.categoria.nombre}</p>
+            </div>
 
-                    <td className="px-4 py-4 text-slate-600">
-                      {product.proveedor?.nombre ?? "Sin proveedor"}
-                    </td>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Proveedor
+              </p>
+              <p className="mt-1 text-slate-700">
+                {product.proveedor?.nombre ?? "Sin proveedor"}
+              </p>
+            </div>
 
-                    <td className="px-4 py-4 font-semibold text-slate-900">
-                      {formatGs(product.precioVenta)}
-                    </td>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Precio venta
+              </p>
+              <p className="mt-1 font-semibold text-slate-900">
+                {formatGs(product.precioVenta)}
+              </p>
+            </div>
 
-                    <td className="px-4 py-4 text-slate-600">
-                      {formatGs(product.costoProveedor)}
-                    </td>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Costo
+              </p>
+              <p className="mt-1 text-slate-700">
+                {formatGs(product.costoProveedor)}
+              </p>
+            </div>
 
-                    <td
-                      className={`px-4 py-4 font-semibold ${
-                        lowStock ? "text-red-600" : "text-slate-900"
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Stock
+              </p>
+              <p
+                className={`mt-1 font-semibold ${
+                  lowStock ? "text-red-600" : "text-slate-900"
+                }`}
+              >
+                {product.stockActual}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Mínimo
+              </p>
+              <p className="mt-1 text-slate-700">{product.stockMinimo}</p>
+            </div>
+
+            <div className="col-span-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Pack
+              </p>
+              <p className="mt-1 text-slate-700">
+                {product.manejaPack
+                  ? `${product.unidadesPorPack ?? 0} u. por pack`
+                  : "No maneja pack"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <button
+              onClick={() => openEditForm(product)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Editar
+            </button>
+          </div>
+        </div>
+
+        
+      );
+    })}
+  </div>
+
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[1280px] border-separate border-spacing-y-3">
+          <thead>
+            <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <th className="pb-2">Producto</th>
+              <th className="pb-2">Categoría</th>
+              <th className="pb-2">Proveedor</th>
+              <th className="pb-2">Precio venta</th>
+              <th className="pb-2">Costo proveedor</th>
+              <th className="pb-2">Stock</th>
+              <th className="pb-2">Mínimo</th>
+              <th className="pb-2">Pack</th>
+              <th className="pb-2">Estado</th>
+              <th className="pb-2">Acción</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filteredProducts.map((product) => {
+              const lowStock = product.stockActual <= product.stockMinimo;
+
+              return (
+                <tr key={product.id} className="rounded-2xl bg-slate-50">
+                  <td className="rounded-l-2xl px-4 py-4">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {product.nombre}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        Código: {product.codigo}
+                      </p>
+                    </div>
+                  </td>
+
+                  <td className="px-4 py-4 text-slate-600">
+                    {product.categoria.nombre}
+                  </td>
+
+                  <td className="px-4 py-4 text-slate-600">
+                    {product.proveedor?.nombre ?? "Sin proveedor"}
+                  </td>
+
+                  <td className="px-4 py-4 font-semibold text-slate-900">
+                    {formatGs(product.precioVenta)}
+                  </td>
+
+                  <td className="px-4 py-4 text-slate-600">
+                    {formatGs(product.costoProveedor)}
+                  </td>
+
+                  <td
+                    className={`px-4 py-4 font-semibold ${
+                      lowStock ? "text-red-600" : "text-slate-900"
+                    }`}
+                  >
+                    {product.stockActual}
+                  </td>
+
+                  <td className="px-4 py-4 text-slate-600">
+                    {product.stockMinimo}
+                  </td>
+
+                  <td className="px-4 py-4 text-slate-600">
+                    {product.manejaPack
+                      ? `${product.unidadesPorPack ?? 0} u.`
+                      : "No"}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        product.activo
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-slate-200 text-slate-700"
                       }`}
                     >
-                      {product.stockActual}
-                    </td>
+                      {product.activo ? "Activo" : "Inactivo"}
+                    </span>
+                  </td>
 
-                    <td className="px-4 py-4 text-slate-600">
-                      {product.stockMinimo}
-                    </td>
-
-                    <td className="px-4 py-4 text-slate-600">
-                      {product.manejaPack
-                        ? `${product.unidadesPorPack ?? 0} u.`
-                        : "No"}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          product.activo
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-200 text-slate-700"
-                        }`}
+                  <td className="rounded-r-2xl px-4 py-4">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openEditForm(product)}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                       >
-                        {product.activo ? "Activo" : "Inactivo"}
-                      </span>
-                    </td>
-
-                    <td className="rounded-r-2xl px-4 py-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openEditForm(product)}
-                          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                        >
-                          Editar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        Editar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
       </section>
+
+            {editModalOpen && editingProductId !== null && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-4">
+          <div
+            className="absolute inset-0"
+            onClick={() => {
+              setEditModalOpen(false);
+              setEditingProductId(null);
+              setUpdateError(null);
+              setUpdateSuccess(null);
+            }}
+          />
+
+          <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-white p-4 shadow-2xl sm:max-w-5xl sm:rounded-[32px] sm:p-6">
+            <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-slate-200 sm:hidden" />
+
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-600">
+                  Edición
+                </p>
+                <h3 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
+                  Editar producto
+                </h3>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEditModalOpen(false);
+                  setEditingProductId(null);
+                  setUpdateError(null);
+                  setUpdateSuccess(null);
+                }}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <input
+                type="text"
+                value={editProduct.nombre}
+                onChange={(e) =>
+                  setEditProduct((prev) => ({ ...prev, nombre: e.target.value }))
+                }
+                placeholder="Nombre"
+                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+              />
+
+              <input
+                type="text"
+                value={editProduct.codigo}
+                onChange={(e) =>
+                  setEditProduct((prev) => ({ ...prev, codigo: e.target.value }))
+                }
+                placeholder="Código"
+                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+              />
+
+              <input
+                type="number"
+                min="0"
+                value={editProduct.precioVenta}
+                onChange={(e) =>
+                  setEditProduct((prev) => ({
+                    ...prev,
+                    precioVenta: e.target.value,
+                  }))
+                }
+                placeholder="Precio de venta"
+                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+              />
+
+              <input
+                type="number"
+                min="0"
+                value={editProduct.costoProveedor}
+                onChange={(e) =>
+                  setEditProduct((prev) => ({
+                    ...prev,
+                    costoProveedor: e.target.value,
+                  }))
+                }
+                placeholder="Costo proveedor"
+                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+              />
+
+              <input
+                type="number"
+                min="0"
+                value={editProduct.stockMinimo}
+                onChange={(e) =>
+                  setEditProduct((prev) => ({
+                    ...prev,
+                    stockMinimo: e.target.value,
+                  }))
+                }
+                placeholder="Stock mínimo"
+                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+              />
+
+              <select
+                value={editProduct.categoriaId}
+                onChange={(e) =>
+                  setEditProduct((prev) => ({
+                    ...prev,
+                    categoriaId: e.target.value,
+                  }))
+                }
+                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+              >
+                <option value="">Seleccionar categoría</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.nombre}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={editProduct.proveedorId}
+                onChange={(e) =>
+                  setEditProduct((prev) => ({
+                    ...prev,
+                    proveedorId: e.target.value,
+                  }))
+                }
+                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+              >
+                <option value="">Seleccionar proveedor</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.nombre}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={editProduct.activo ? "true" : "false"}
+                onChange={(e) =>
+                  setEditProduct((prev) => ({
+                    ...prev,
+                    activo: e.target.value === "true",
+                  }))
+                }
+                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
+              >
+                <option value="true">Activo</option>
+                <option value="false">Inactivo</option>
+              </select>
+
+              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={editProduct.manejaPack}
+                  onChange={(e) =>
+                    setEditProduct((prev) => ({
+                      ...prev,
+                      manejaPack: e.target.checked,
+                      unidadesPorPack: e.target.checked
+                        ? prev.unidadesPorPack || "1"
+                        : "",
+                    }))
+                  }
+                />
+                Maneja pack
+              </label>
+
+              <input
+                type="number"
+                min="1"
+                value={editProduct.unidadesPorPack}
+                onChange={(e) =>
+                  setEditProduct((prev) => ({
+                    ...prev,
+                    unidadesPorPack: e.target.value,
+                  }))
+                }
+                placeholder="Unidades por pack"
+                disabled={!editProduct.manejaPack}
+                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </div>
+
+            {updateError && (
+              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {updateError}
+              </div>
+            )}
+
+            {updateSuccess && (
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {updateSuccess}
+              </div>
+            )}
+
+            <div className="mt-6 grid gap-3 sm:flex">
+              <button
+                onClick={handleUpdateProduct}
+                disabled={updatingProduct}
+                className="rounded-2xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {updatingProduct ? "Actualizando..." : "Guardar cambios"}
+              </button>
+
+              <button
+                onClick={() => {
+                  setEditModalOpen(false);
+                  setEditingProductId(null);
+                  setUpdateError(null);
+                  setUpdateSuccess(null);
+                }}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelar edición
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 function IngresosView() {
   const [providers, setProviders] = useState<ProveedorOption[]>([]);
@@ -2653,15 +3186,15 @@ function IngresosView() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
             Logística
           </p>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
             Ingresos de mercadería
           </h2>
-          <p className="mt-2 max-w-2xl text-slate-500">
+          <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
             Registro de productos recibidos desde proveedor, tanto en consignación
             como en compra directa.
           </p>
@@ -2670,19 +3203,19 @@ function IngresosView() {
         <button
           onClick={handleSaveIngreso}
           disabled={submittingIngreso}
-          className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {submittingIngreso ? "Guardando ingreso..." : "Guardar ingreso"}
         </button>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[0.85fr_1.4fr]">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.35fr]">
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
           <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
               Formulario
             </p>
-            <h3 className="mt-3 text-2xl font-bold text-slate-950">
+            <h3 className="mt-2 text-xl font-bold text-slate-950 sm:mt-3 sm:text-2xl">
               Datos del ingreso
             </h3>
           </div>
@@ -2791,20 +3324,20 @@ function IngresosView() {
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
                 Detalle
               </p>
-              <h3 className="mt-3 text-2xl font-bold text-slate-950">
+              <h3 className="mt-2 text-xl font-bold text-slate-950 sm:mt-3 sm:text-2xl">
                 Productos ingresados
               </h3>
             </div>
 
             <button
               onClick={addRow}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-100 sm:w-auto"
             >
               Agregar fila
             </button>
@@ -2816,7 +3349,106 @@ function IngresosView() {
             </div>
           )}
 
-          <div className="overflow-x-auto">
+          <div className="space-y-3 md:hidden">
+            {items.map((item) => {
+              const subtotal =
+                Number(item.cantidad) * Number(item.costoUnitario);
+
+              return (
+                <div
+                  key={item.id}
+                  className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
+                >
+                  <div className="space-y-3">
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        Producto
+                      </label>
+                      <select
+                        value={item.productoId}
+                        onChange={(e) =>
+                          updateItem(
+                            item.id,
+                            "productoId",
+                            e.target.value ? Number(e.target.value) : ""
+                          )
+                        }
+                        disabled={!providerId}
+                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <option value="">Seleccionar producto</option>
+                        {validProductsForProvider.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.nombre} - {product.codigo}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                          Cantidad
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.cantidad}
+                          onChange={(e) =>
+                            updateItem(
+                              item.id,
+                              "cantidad",
+                              Number(e.target.value) || 0
+                            )
+                          }
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                          Costo
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={item.costoUnitario}
+                          onChange={(e) =>
+                            updateItem(
+                              item.id,
+                              "costoUnitario",
+                              Number(e.target.value) || 0
+                            )
+                          }
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                          Subtotal
+                        </p>
+                        <p className="mt-1 text-base font-bold text-slate-950">
+                          {formatGs(subtotal)}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => removeRow(item.id)}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[900px] border-separate border-spacing-y-3">
               <thead>
                 <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
@@ -2846,7 +3478,7 @@ function IngresosView() {
                             )
                           }
                           disabled={!providerId}
-                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300"
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <option value="">Seleccionar producto</option>
                           {validProductsForProvider.map((product) => (
@@ -2912,11 +3544,11 @@ function IngresosView() {
             <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
               Total del ingreso
             </p>
-            <h3 className="mt-2 text-4xl font-bold tracking-tight">
+            <h3 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
               {formatGs(totalIngreso)}
             </h3>
             <p className="mt-2 text-sm text-slate-400">
-              {items.length} filas registradas en este ingreso
+              {items.length} fila{items.length === 1 ? "" : "s"} registradas en este ingreso
             </p>
           </div>
         </div>
@@ -2932,35 +3564,35 @@ function LiquidacionesView() {
   };
 
   type LiquidacionHistorial = {
-  id: number;
-  fecha: string;
-  periodo: string;
-  totalPagar: number;
-  cerrada: boolean;
-  fechaCierre: string | null;
-  observacion: string | null;
-  createdAt: string;
-  updatedAt: string;
-  proveedor: {
     id: number;
-    nombre: string;
-  };
-  detalles: Array<{
-    id: number;
-    cantidadRecibida: number;
-    cantidadVendida: number;
-    cantidadRestante: number;
-    costoUnitario: number;
-    subtotal: number;
-    producto: {
+    fecha: string;
+    periodo: string;
+    totalPagar: number;
+    cerrada: boolean;
+    fechaCierre: string | null;
+    observacion: string | null;
+    createdAt: string;
+    updatedAt: string;
+    proveedor: {
       id: number;
       nombre: string;
-      codigo: string;
-      manejaPack: boolean;
-      unidadesPorPack: number | null;
     };
-  }>;
-};
+    detalles: Array<{
+      id: number;
+      cantidadRecibida: number;
+      cantidadVendida: number;
+      cantidadRestante: number;
+      costoUnitario: number;
+      subtotal: number;
+      producto: {
+        id: number;
+        nombre: string;
+        codigo: string;
+        manejaPack: boolean;
+        unidadesPorPack: number | null;
+      };
+    }>;
+  };
 
   const currentMonth = new Date().toISOString().slice(0, 7);
 
@@ -2975,7 +3607,7 @@ function LiquidacionesView() {
     ProveedorConDeuda[]
   >([]);
 
-    const [historialLiquidaciones, setHistorialLiquidaciones] = useState<
+  const [historialLiquidaciones, setHistorialLiquidaciones] = useState<
     LiquidacionHistorial[]
   >([]);
 
@@ -3073,13 +3705,14 @@ function LiquidacionesView() {
     try {
       const data = await fetchJson<LiquidacionHistorial[]>("/liquidaciones");
 
-            const cerradas = data
+      const cerradas = data
         .filter((item) => item.cerrada)
         .sort(
           (a, b) =>
             new Date(b.fechaCierre ?? b.updatedAt).getTime() -
             new Date(a.fechaCierre ?? a.updatedAt).getTime()
         );
+
       setHistorialLiquidaciones(cerradas);
     } finally {
       setLoadingHistorial(false);
@@ -3160,7 +3793,7 @@ function LiquidacionesView() {
       (item) => item.proveedor.id === selectedProviderId
     ) ?? null;
 
-      const historialProviderOptions = [
+  const historialProviderOptions = [
     "TODOS",
     ...Array.from(
       new Set(historialLiquidaciones.map((item) => item.proveedor.nombre))
@@ -3383,31 +4016,31 @@ function LiquidacionesView() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
             Finanzas & consignación
           </p>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
             Liquidaciones
           </h2>
-          <p className="mt-2 max-w-2xl text-slate-500">
+          <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
             Gestiona liquidaciones pendientes y consulta el historial de cierres
             realizados de forma clara y ordenada.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="w-full sm:w-auto">
           <input
             type="month"
             value={periodo}
             onChange={(e) => setPeriodo(e.target.value)}
-            className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-300"
+            className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-300 sm:w-auto"
           />
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-slate-200 bg-white p-3 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+      <section className="rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px]">
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => {
@@ -3456,25 +4089,25 @@ function LiquidacionesView() {
       {activeTab === "PENDIENTES" && (
         <>
           {loadingPendientes ? (
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+            <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
               <p className="text-sm text-slate-500">
                 Cargando liquidaciones pendientes...
               </p>
             </section>
           ) : liquidacionesPendientes.length === 0 ? (
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+            <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
               <p className="text-sm text-slate-500">
                 No hay deudas pendientes para el período seleccionado.
               </p>
             </section>
           ) : (
-            <div className="grid gap-6 xl:grid-cols-[0.9fr_1.4fr]">
-              <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+            <div className="grid gap-4 xl:grid-cols-[0.92fr_1.38fr]">
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
                 <div className="mb-5">
-                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
                     Proveedores con deuda
                   </p>
-                  <h3 className="mt-2 text-2xl font-bold text-slate-950">
+                  <h3 className="mt-2 text-xl font-bold text-slate-950 sm:mt-3 sm:text-2xl">
                     Pendientes del período
                   </h3>
                 </div>
@@ -3498,7 +4131,7 @@ function LiquidacionesView() {
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="min-w-0">
                             <p className="font-semibold text-slate-900">
                               {item.proveedor.nombre}
                             </p>
@@ -3507,7 +4140,7 @@ function LiquidacionesView() {
                             </p>
                           </div>
 
-                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm whitespace-nowrap">
                             {formatGs(item.resumen.totalGeneral)}
                           </span>
                         </div>
@@ -3517,19 +4150,19 @@ function LiquidacionesView() {
                 </div>
               </section>
 
-              <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
                 {!selectedLiquidacion ? (
                   <p className="text-sm text-slate-500">
                     Selecciona un proveedor para ver el detalle.
                   </p>
                 ) : (
                   <>
-                    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
                           Detalle de liquidación
                         </p>
-                        <h3 className="mt-2 text-2xl font-bold text-slate-950">
+                        <h3 className="mt-2 text-xl font-bold text-slate-950 sm:mt-3 sm:text-2xl">
                           {selectedLiquidacion.proveedor.nombre}
                         </h3>
                         <p className="mt-1 text-sm text-slate-500">
@@ -3546,7 +4179,7 @@ function LiquidacionesView() {
                         disabled={
                           closingId === selectedLiquidacion.proveedor.id
                         }
-                        className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                       >
                         {closingId === selectedLiquidacion.proveedor.id
                           ? "Cerrando..."
@@ -3554,7 +4187,66 @@ function LiquidacionesView() {
                       </button>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    <div className="space-y-3 md:hidden">
+                      {selectedLiquidacion.resumen.detalles.map((item) => (
+                        <div
+                          key={item.productoId}
+                          className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-900">
+                                {item.nombreProducto}
+                              </p>
+                            </div>
+
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                              {formatGs(item.subtotalPagar)}
+                            </span>
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                Ingresado
+                              </p>
+                              <p className="mt-1 text-slate-700">
+                                {item.cantidadIngresada}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                Vendido
+                              </p>
+                              <p className="mt-1 text-slate-700">
+                                {item.cantidadVendida}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                Stock
+                              </p>
+                              <p className="mt-1 text-slate-700">
+                                {item.stockActual}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                Costo
+                              </p>
+                              <p className="mt-1 text-slate-700">
+                                {formatGs(item.costoUnitario)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="hidden overflow-x-auto md:block">
                       <table className="w-full min-w-[760px] border-separate border-spacing-y-3">
                         <thead>
                           <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
@@ -3601,7 +4293,7 @@ function LiquidacionesView() {
                       <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
                         Total a pagar
                       </p>
-                      <h3 className="mt-2 text-4xl font-bold tracking-tight">
+                      <h3 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
                         {formatGs(selectedLiquidacion.resumen.totalGeneral)}
                       </h3>
                       <p className="mt-2 text-sm text-slate-400">
@@ -3616,28 +4308,28 @@ function LiquidacionesView() {
         </>
       )}
 
-            {activeTab === "HISTORIAL" && (
+      {activeTab === "HISTORIAL" && (
         <>
           {loadingHistorial ? (
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+            <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
               <p className="text-sm text-slate-500">
                 Cargando historial de liquidaciones...
               </p>
             </section>
           ) : historialLiquidaciones.length === 0 ? (
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+            <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
               <p className="text-sm text-slate-500">
                 Todavía no hay liquidaciones cerradas para mostrar.
               </p>
             </section>
           ) : (
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-              <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+            <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
+              <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-950">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-950 sm:text-sm sm:tracking-[0.22em]">
                     Historial cerrado
                   </p>
-                  <h3 className="mt-2 text-2xl font-bold text-slate-950">
+                  <h3 className="mt-2 text-xl font-bold text-slate-950 sm:mt-3 sm:text-2xl">
                     Liquidaciones registradas
                   </h3>
                   <p className="mt-1 text-sm text-slate-500">
@@ -3646,7 +4338,7 @@ function LiquidacionesView() {
                   </p>
                 </div>
 
-                <div className="rounded-[22px] bg-slate-50 px-4 py-3 text-right">
+                <div className="rounded-[22px] bg-slate-50 px-4 py-3 text-left lg:text-right">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Resultados
                   </p>
@@ -3656,7 +4348,7 @@ function LiquidacionesView() {
                 </div>
               </div>
 
-              <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <input
                   type="text"
                   value={historialSearch}
@@ -3699,60 +4391,122 @@ function LiquidacionesView() {
                   No hay liquidaciones que coincidan con los filtros actuales.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[980px] border-separate border-spacing-y-3">
-                    <thead>
-                      <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        <th className="pb-2">Liquidación</th>
-                        <th className="pb-2">Proveedor</th>
-                        <th className="pb-2">Período</th>
-                        <th className="pb-2">Fecha cierre</th>
-                        <th className="pb-2">Productos</th>
-                        <th className="pb-2">Total pagado</th>
-                        <th className="pb-2">Acción</th>
-                      </tr>
-                    </thead>
+                <>
+                  <div className="space-y-3 md:hidden">
+                    {historialFiltrado.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900">
+                              #{item.id}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {item.proveedor.nombre}
+                            </p>
+                          </div>
 
-                    <tbody>
-                      {historialFiltrado.map((item) => (
-                        <tr key={item.id} className="rounded-2xl bg-slate-50">
-                          <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">
-                            #{item.id}
-                          </td>
-
-                          <td className="px-4 py-4 text-slate-700">
-                            {item.proveedor.nombre}
-                          </td>
-
-                          <td className="px-4 py-4 text-slate-700">
-                            {item.periodo}
-                          </td>
-
-                          <td className="px-4 py-4 text-slate-700">
-                            {formatDateTime(item.fechaCierre ?? item.updatedAt)}
-                          </td>
-
-                          <td className="px-4 py-4 text-slate-700">
-                            {item.detalles.length}
-                          </td>
-
-                          <td className="px-4 py-4 font-semibold text-slate-950">
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
                             {formatGs(item.totalPagar)}
-                          </td>
+                          </span>
+                        </div>
 
-                          <td className="rounded-r-2xl px-4 py-4">
-                            <button
-                              onClick={() => setSelectedHistorial(item)}
-                              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                            >
-                              Ver detalle
-                            </button>
-                          </td>
+                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                              Período
+                            </p>
+                            <p className="mt-1 text-slate-700">{item.periodo}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                              Productos
+                            </p>
+                            <p className="mt-1 text-slate-700">
+                              {item.detalles.length}
+                            </p>
+                          </div>
+
+                          <div className="col-span-2">
+                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                              Fecha cierre
+                            </p>
+                            <p className="mt-1 text-slate-700">
+                              {formatDateTime(item.fechaCierre ?? item.updatedAt)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <button
+                            onClick={() => setSelectedHistorial(item)}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Ver detalle
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden overflow-x-auto md:block">
+                    <table className="w-full min-w-[980px] border-separate border-spacing-y-3">
+                      <thead>
+                        <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          <th className="pb-2">Liquidación</th>
+                          <th className="pb-2">Proveedor</th>
+                          <th className="pb-2">Período</th>
+                          <th className="pb-2">Fecha cierre</th>
+                          <th className="pb-2">Productos</th>
+                          <th className="pb-2">Total pagado</th>
+                          <th className="pb-2">Acción</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+
+                      <tbody>
+                        {historialFiltrado.map((item) => (
+                          <tr key={item.id} className="rounded-2xl bg-slate-50">
+                            <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">
+                              #{item.id}
+                            </td>
+
+                            <td className="px-4 py-4 text-slate-700">
+                              {item.proveedor.nombre}
+                            </td>
+
+                            <td className="px-4 py-4 text-slate-700">
+                              {item.periodo}
+                            </td>
+
+                            <td className="px-4 py-4 text-slate-700">
+                              {formatDateTime(item.fechaCierre ?? item.updatedAt)}
+                            </td>
+
+                            <td className="px-4 py-4 text-slate-700">
+                              {item.detalles.length}
+                            </td>
+
+                            <td className="px-4 py-4 font-semibold text-slate-950">
+                              {formatGs(item.totalPagar)}
+                            </td>
+
+                            <td className="rounded-r-2xl px-4 py-4">
+                              <button
+                                onClick={() => setSelectedHistorial(item)}
+                                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                              >
+                                Ver detalle
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </section>
           )}
@@ -3762,12 +4516,12 @@ function LiquidacionesView() {
       {selectedHistorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-6">
           <div className="max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-[32px] bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
-              <div>
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
+              <div className="min-w-0">
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
                   Detalle de liquidación
                 </p>
-                <h3 className="mt-2 text-3xl font-bold text-slate-950">
+                <h3 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
                   #{selectedHistorial.id} · {selectedHistorial.proveedor.nombre}
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
@@ -3783,7 +4537,7 @@ function LiquidacionesView() {
               </button>
             </div>
 
-            <div className="max-h-[calc(92vh-88px)] overflow-y-auto px-6 py-6">
+            <div className="max-h-[calc(92vh-88px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
@@ -3798,7 +4552,7 @@ function LiquidacionesView() {
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Fecha de cierre
                   </p>
-                                    <p className="mt-2 text-lg font-bold text-slate-950">
+                  <p className="mt-2 text-lg font-bold text-slate-950">
                     {formatDateTime(
                       selectedHistorial.fechaCierre ??
                         selectedHistorial.updatedAt
@@ -3834,103 +4588,116 @@ function LiquidacionesView() {
                 </p>
               </div>
 
-             <div className="mt-6 overflow-x-auto">
-  <table className="w-full min-w-[1500px] table-fixed border-separate border-spacing-y-3">
-    <thead>
-      <tr className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-        <th className="w-[220px] pb-2 text-left">Producto</th>
-        <th className="w-[120px] pb-2 text-left">Código</th>
-        <th className="w-[90px] pb-2 text-center">Ingresado</th>
-        <th className="w-[150px] pb-2 text-center">Packs ingresados</th>
-        <th className="w-[90px] pb-2 text-center">Vendido</th>
-        <th className="w-[90px] pb-2 text-center">Pack</th>
-        <th className="w-[130px] pb-2 text-center">Packs a liquidar</th>
-        <th className="w-[135px] pb-2 text-center">Unidades liquidadas</th>
-        <th className="w-[140px] pb-2 text-center">Packs restantes</th>
-        <th className="w-[110px] pb-2 text-center">Costo unitario</th>
-        <th className="w-[120px] pb-2 text-right">Subtotal</th>
-      </tr>
-    </thead>
+              <div className="mt-6 overflow-x-auto">
+                <table className="w-full min-w-[1500px] table-fixed border-separate border-spacing-y-3">
+                  <thead>
+                    <tr className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      <th className="w-[220px] pb-2 text-left">Producto</th>
+                      <th className="w-[120px] pb-2 text-left">Código</th>
+                      <th className="w-[90px] pb-2 text-center">Ingresado</th>
+                      <th className="w-[150px] pb-2 text-center">
+                        Packs ingresados
+                      </th>
+                      <th className="w-[90px] pb-2 text-center">Vendido</th>
+                      <th className="w-[90px] pb-2 text-center">Pack</th>
+                      <th className="w-[130px] pb-2 text-center">
+                        Packs a liquidar
+                      </th>
+                      <th className="w-[135px] pb-2 text-center">
+                        Unidades liquidadas
+                      </th>
+                      <th className="w-[140px] pb-2 text-center">
+                        Packs restantes
+                      </th>
+                      <th className="w-[110px] pb-2 text-center">
+                        Costo unitario
+                      </th>
+                      <th className="w-[120px] pb-2 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
 
-                      <tbody>
-                        {selectedHistorial.detalles.map((item) => {
-                    const packInfo = getPackMetrics({
-                      cantidadIngresada: item.cantidadRecibida,
-                      cantidadVendida: item.cantidadVendida,
-                      stockActual: item.cantidadRestante,
-                      manejaPack: item.producto.manejaPack,
-                      unidadesPorPack: item.producto.unidadesPorPack,
-                    });
+                  <tbody>
+                    {selectedHistorial.detalles.map((item) => {
+                      const packInfo = getPackMetrics({
+                        cantidadIngresada: item.cantidadRecibida,
+                        cantidadVendida: item.cantidadVendida,
+                        stockActual: item.cantidadRestante,
+                        manejaPack: item.producto.manejaPack,
+                        unidadesPorPack: item.producto.unidadesPorPack,
+                      });
 
-                    return (
-                      <tr key={item.id} className="align-middle rounded-2xl bg-slate-50">
-                        <td className="rounded-l-2xl px-4 py-4 text-left font-semibold text-slate-900">
-                          {item.producto.nombre}
-                        </td>
+                      return (
+                        <tr
+                          key={item.id}
+                          className="align-middle rounded-2xl bg-slate-50"
+                        >
+                          <td className="rounded-l-2xl px-4 py-4 text-left font-semibold text-slate-900">
+                            {item.producto.nombre}
+                          </td>
 
-                        <td className="px-4 py-4 text-left text-slate-700">
-                          {item.producto.codigo}
-                        </td>
+                          <td className="px-4 py-4 text-left text-slate-700">
+                            {item.producto.codigo}
+                          </td>
 
-                        <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
-                          {item.cantidadRecibida} u.
-                        </td>
+                          <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
+                            {item.cantidadRecibida} u.
+                          </td>
 
-                        <td className="px-4 py-4 text-center text-slate-700">
-                          {packInfo.packsIngresados}
-                        </td>
+                          <td className="px-4 py-4 text-center text-slate-700">
+                            {packInfo.packsIngresados}
+                          </td>
 
-                        <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
-                          {item.cantidadVendida} u.
-                        </td>
+                          <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
+                            {item.cantidadVendida} u.
+                          </td>
 
-                        <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
-                          {packInfo.packLabel}
-                        </td>
+                          <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
+                            {packInfo.packLabel}
+                          </td>
 
-                        <td className="px-4 py-4 text-center font-medium text-blue-700">
-                          {packInfo.packsALiquidar}
-                        </td>
+                          <td className="px-4 py-4 text-center font-medium text-blue-700">
+                            {packInfo.packsALiquidar}
+                          </td>
 
-                        <td className="px-4 py-4 text-center font-medium text-slate-900 whitespace-nowrap">
-                          {packInfo.unidadesLiquidadas}
-                        </td>
+                          <td className="px-4 py-4 text-center font-medium text-slate-900 whitespace-nowrap">
+                            {packInfo.unidadesLiquidadas}
+                          </td>
 
-                        <td className="px-4 py-4 text-center text-slate-700">
-                          {packInfo.packsRestantes}
-                        </td>
+                          <td className="px-4 py-4 text-center text-slate-700">
+                            {packInfo.packsRestantes}
+                          </td>
 
-                        <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
-                          {formatGs(item.costoUnitario)}
-                        </td>
+                          <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
+                            {formatGs(item.costoUnitario)}
+                          </td>
 
-                        <td className="rounded-r-2xl px-4 py-4 text-right font-semibold text-slate-950 whitespace-nowrap">
-                          {formatGs(item.subtotal)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                      </tbody>
-                    </table>
+                          <td className="rounded-r-2xl px-4 py-4 text-right font-semibold text-slate-950 whitespace-nowrap">
+                            {formatGs(item.subtotal)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
-<div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-  Los productos configurados por pack se liquidan redondeando hacia arriba al
-  pack completo. Por eso las unidades liquidadas y el total pueden ser mayores
-  que las unidades vendidas reales.
-</div>
+              <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Los productos configurados por pack se liquidan redondeando hacia
+                arriba al pack completo. Por eso las unidades liquidadas y el
+                total pueden ser mayores que las unidades vendidas reales.
+              </div>
 
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-[24px] bg-slate-950 p-5 text-white">
+              <div className="mt-6 flex flex-col gap-4 rounded-[24px] bg-slate-950 p-5 text-white lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
                     Total liquidado
                   </p>
-                  <h3 className="mt-2 text-4xl font-bold tracking-tight">
+                  <h3 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
                     {formatGs(selectedHistorial.totalPagar)}
                   </h3>
                 </div>
 
-                <div className="flex flex-wrap gap-3">
+                <div className="grid gap-3 sm:flex sm:flex-wrap">
                   <button
                     onClick={() => handlePrintLiquidacion(selectedHistorial)}
                     className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
@@ -3979,6 +4746,8 @@ function Content({ active }: { active: ModuleKey }) {
       );
     case "stock":
       return <StockView />;
+    case "ingresos":
+    return <IngresosView />;
     case "ingresos":
       return <IngresosView />;
     case "proveedores":
