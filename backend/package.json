@@ -4,6 +4,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
     "db:export-data": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -SkipImport",
     "db:import-supabase": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -SkipExport",
     "db:migrate-data:supabase": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -TruncateBeforeImport",
