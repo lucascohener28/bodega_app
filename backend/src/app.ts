@@ -11,8 +11,9 @@ import dashboardRoutes from './routes/dashboard.routes'
 import reportesRoutes from './routes/reportes.routes'
 
 const app = express()
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173'
 
-app.use(cors())
+app.use(cors({ origin: corsOrigin }))
 app.use(express.json())
 app.use('/productos', productosRoutes)
 app.use('/categorias', categoriasRoutes)

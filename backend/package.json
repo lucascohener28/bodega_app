@@ -4,6 +4,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "db:export-data": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -SkipImport",
+    "db:import-supabase": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -SkipExport",
+    "db:migrate-data:supabase": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -TruncateBeforeImport",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
