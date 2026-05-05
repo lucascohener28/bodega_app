@@ -344,6 +344,10 @@ router.patch('/:id/ajustar-stock', async (req, res) => {
         data: {
           tipoMovimiento: 'AJUSTE',
           cantidad: diferencia,
+          stockAnterior: productoExistente.stockActual,
+          stockNuevo: nuevoStock,
+          referenciaTipo: 'AJUSTE_MANUAL',
+          referenciaId: id,
           observacion:
             observacion && String(observacion).trim() !== ''
               ? String(observacion).trim()

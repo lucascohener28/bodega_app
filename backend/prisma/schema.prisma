@@ -117,6 +117,10 @@ model MovimientoInventario {
   id              Int              @id @default(autoincrement())
   tipoMovimiento  TipoMovimiento
   cantidad        Int
+  stockAnterior   Int?
+  stockNuevo      Int?
+  referenciaTipo  String?
+  referenciaId    Int?
   observacion     String?
   productoId      Int
   createdAt       DateTime         @default(now())

@@ -9,9 +9,21 @@ router.get('/', async (_req, res) => {
       orderBy: {
         id: 'desc',
       },
+      include: {
+        _count: {
+          select: {
+            productos: true,
+          },
+        },
+      },
     })
 
-    res.json(categorias)
+    res.json(
+      categorias.map((categoria) => ({
+        ...categoria,
+        cantidadProductos: categoria._count.productos,
+      }))
+    )
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Error al obtener categorías' })
@@ -30,6 +42,21 @@ router.get('/:id', async (req, res) => {
 
     const categoria = await prisma.categoria.findUnique({
       where: { id },
+      include: {
+        productos: {
+          include: {
+            proveedor: true,
+          },
+          orderBy: {
+            nombre: 'asc',
+          },
+        },
+        _count: {
+          select: {
+            productos: true,
+          },
+        },
+      },
     })
 
     if (!categoria) {
@@ -38,7 +65,10 @@ router.get('/:id', async (req, res) => {
       })
     }
 
-    res.json(categoria)
+    res.json({
+      ...categoria,
+      cantidadProductos: categoria._count.productos,
+    })
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Error al obtener la categoría' })

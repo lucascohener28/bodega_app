@@ -85,8 +85,6 @@ router.get('/resumen/calculo', async (req, res) => {
       })
     }
 
-    const { fechaInicio, fechaFin } = rango
-
     const proveedor = await prisma.proveedor.findUnique({
       where: {
         id: proveedorIdNumber,
@@ -103,10 +101,6 @@ router.get('/resumen/calculo', async (req, res) => {
       where: {
         ingreso: {
           proveedorId: proveedorIdNumber,
-          fecha: {
-            gte: fechaInicio,
-            lt: fechaFin,
-          },
         },
       },
       include: {
@@ -119,12 +113,6 @@ router.get('/resumen/calculo', async (req, res) => {
         liquidado: false,
         producto: {
           proveedorId: proveedorIdNumber,
-        },
-        venta: {
-          fecha: {
-            gte: fechaInicio,
-            lt: fechaFin,
-          },
         },
       },
       include: {
@@ -296,8 +284,6 @@ router.post('/', async (req, res) => {
       })
     }
 
-    const { fechaInicio, fechaFin } = rango
-
     const proveedor = await prisma.proveedor.findUnique({
       where: {
         id: proveedorIdNumber,
@@ -314,10 +300,6 @@ router.post('/', async (req, res) => {
       where: {
         ingreso: {
           proveedorId: proveedorIdNumber,
-          fecha: {
-            gte: fechaInicio,
-            lt: fechaFin,
-          },
         },
       },
       include: {
@@ -330,12 +312,6 @@ router.post('/', async (req, res) => {
         liquidado: false,
         producto: {
           proveedorId: proveedorIdNumber,
-        },
-        venta: {
-          fecha: {
-            gte: fechaInicio,
-            lt: fechaFin,
-          },
         },
       },
       include: {
@@ -520,7 +496,6 @@ router.patch('/:id/cerrar', async (req, res) => {
       })
     }
 
-    const { fechaInicio, fechaFin } = rango
     const fechaLiquidacion = new Date()
 
     const liquidacionCerrada = await prisma.$transaction(async (tx) => {
@@ -529,12 +504,6 @@ router.patch('/:id/cerrar', async (req, res) => {
           liquidado: false,
           producto: {
             proveedorId: liquidacionExistente.proveedorId,
-          },
-          venta: {
-            fecha: {
-              gte: fechaInicio,
-              lt: fechaFin,
-            },
           },
         },
         data: {

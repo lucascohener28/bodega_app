@@ -131,6 +131,16 @@ router.post('/', async (req, res) => {
 
         const subtotal = cantidad * costoUnitario
 
+        const productoActual = await tx.producto.findUnique({
+          where: {
+            id: productoId,
+          },
+        })
+
+        if (!productoActual) {
+          throw new Error('Producto no encontrado')
+        }
+
         await tx.detalleIngresoMercaderia.create({
           data: {
             ingresoId: nuevoIngreso.id,
@@ -157,6 +167,10 @@ router.post('/', async (req, res) => {
             productoId,
             tipoMovimiento: 'ENTRADA',
             cantidad,
+            stockAnterior: productoActual.stockActual,
+            stockNuevo: productoActual.stockActual + cantidad,
+            referenciaTipo: 'INGRESO',
+            referenciaId: nuevoIngreso.id,
             observacion: `Ingreso de mercadería #${nuevoIngreso.id}`,
           },
         })

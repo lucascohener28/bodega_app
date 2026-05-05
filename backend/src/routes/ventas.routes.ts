@@ -163,6 +163,10 @@ router.post('/', async (req, res) => {
             productoId,
             tipoMovimiento: 'SALIDA',
             cantidad,
+            stockAnterior: producto.stockActual,
+            stockNuevo: producto.stockActual - cantidad,
+            referenciaTipo: 'VENTA',
+            referenciaId: nuevaVenta.id,
             observacion: `Venta #${nuevaVenta.id}`,
           },
         })

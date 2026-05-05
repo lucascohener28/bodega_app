@@ -1,8 +1,25 @@
 import * as express from 'express'
-import { Prisma } from '@prisma/client'
 import { prisma } from '../config/prisma'
 
 const router = express.Router()
+
+function margen(ganancia: number, venta: number) {
+  if (venta <= 0) return 0
+  return (ganancia / venta) * 100
+}
+
+function calcularCostoLiquidacion(
+  cantidad: number,
+  costoProveedor: number,
+  manejaPack: boolean,
+  unidadesPorPack: number | null
+) {
+  if (manejaPack && unidadesPorPack && unidadesPorPack > 0) {
+    return Math.ceil(cantidad / unidadesPorPack) * unidadesPorPack * costoProveedor
+  }
+
+  return cantidad * costoProveedor
+}
 
 router.get('/resumen', async (_req, res) => {
   try {
@@ -48,134 +65,154 @@ router.get('/resumen', async (_req, res) => {
       999
     )
 
-    const [ventasHoy, ventasMes, productos, ultimasVentas, detallesVenta] =
-      await Promise.all([
-        prisma.venta.findMany({
-          where: {
-            fecha: {
-              gte: inicioDia,
-              lte: finDia,
+    const [
+      ventasHoy,
+      ventasMes,
+      productos,
+      ultimasVentas,
+      detallesVentaMes,
+      detallesVentaPendientes,
+      ultimosMovimientos,
+      ultimosIngresos,
+      ultimasLiquidaciones,
+    ] = await Promise.all([
+      prisma.venta.findMany({
+        where: {
+          fecha: {
+            gte: inicioDia,
+            lte: finDia,
+          },
+        },
+        include: {
+          detalles: {
+            include: {
+              producto: true,
             },
           },
-        }),
-
-        prisma.venta.findMany({
-          where: {
+        },
+      }),
+      prisma.venta.findMany({
+        where: {
+          fecha: {
+            gte: inicioMes,
+            lte: finMes,
+          },
+        },
+        include: {
+          detalles: {
+            include: {
+              producto: true,
+            },
+          },
+        },
+      }),
+      prisma.producto.findMany({
+        include: {
+          categoria: true,
+          proveedor: true,
+        },
+      }),
+      prisma.venta.findMany({
+        orderBy: {
+          id: 'desc',
+        },
+        take: 5,
+      }),
+      prisma.detalleVenta.findMany({
+        where: {
+          venta: {
             fecha: {
               gte: inicioMes,
               lte: finMes,
             },
           },
-        }),
-
-        prisma.producto.findMany({
-          include: {
-            categoria: true,
-            proveedor: true,
-          },
-        }),
-
-        prisma.venta.findMany({
-          orderBy: {
-            id: 'desc',
-          },
-          take: 5,
-          include: {
-            detalles: {
-              include: {
-                producto: true,
-              },
-            },
-          },
-        }),
-
-        prisma.detalleVenta.findMany({
-          include: {
-            producto: true,
-          },
-        }),
-      ])
-
-    type DetalleVentaPendiente = Prisma.DetalleVentaGetPayload<{
-      include: {
-        producto: {
-          select: {
-            costoProveedor: true
-            manejaPack: true
-            unidadesPorPack: true
-          }
-        }
-      }
-    }>
-
-    const detallesVentaPendientes: DetalleVentaPendiente[] =
-      await prisma.detalleVenta.findMany({
+        },
+        include: {
+          producto: true,
+          venta: true,
+        },
+      }),
+      prisma.detalleVenta.findMany({
         where: {
           liquidado: false,
         },
         include: {
-          producto: {
-            select: {
-              costoProveedor: true,
-              manejaPack: true,
-              unidadesPorPack: true,
-            },
-          },
+          producto: true,
         },
-      })
+      }),
+      prisma.movimientoInventario.findMany({
+        orderBy: {
+          id: 'desc',
+        },
+        take: 5,
+        include: {
+          producto: true,
+        },
+      }),
+      prisma.ingresoMercaderia.findMany({
+        orderBy: {
+          id: 'desc',
+        },
+        take: 3,
+        include: {
+          proveedor: true,
+        },
+      }),
+      prisma.liquidacion.findMany({
+        where: {
+          cerrada: true,
+        },
+        orderBy: {
+          fechaCierre: 'desc',
+        },
+        take: 3,
+        include: {
+          proveedor: true,
+        },
+      }),
+    ])
 
-    const totalVentasHoy = ventasHoy.reduce(
-      (acc: number, venta: { total: number }) => acc + venta.total,
-      0
-    )
+    const totalVentasHoy = ventasHoy.reduce((acc, venta) => acc + venta.total, 0)
+    const totalVentasMes = ventasMes.reduce((acc, venta) => acc + venta.total, 0)
 
-    const totalVentasMes = ventasMes.reduce(
-      (acc: number, venta: { total: number }) => acc + venta.total,
-      0
-    )
+    const calcularGananciaVentas = (ventas: typeof ventasHoy) =>
+      ventas.reduce(
+        (acc, venta) =>
+          acc +
+          venta.detalles.reduce(
+            (detalleAcc, item) =>
+              detalleAcc + item.subtotal - item.cantidad * item.producto.costoProveedor,
+            0
+          ),
+        0
+      )
+
+    const gananciaHoy = calcularGananciaVentas(ventasHoy)
+    const gananciaMes = calcularGananciaVentas(ventasMes)
+    const cantidadVentasHoy = ventasHoy.length
+    const cantidadVentasMes = ventasMes.length
+    const ticketPromedioHoy =
+      cantidadVentasHoy > 0 ? totalVentasHoy / cantidadVentasHoy : 0
+    const ticketPromedioMes =
+      cantidadVentasMes > 0 ? totalVentasMes / cantidadVentasMes : 0
 
     const productosBajoStock = productos.filter(
-      (producto: { stockActual: number; stockMinimo: number }) =>
-        producto.stockActual <= producto.stockMinimo
+      (producto) => producto.stockActual <= producto.stockMinimo
     )
 
-    const deudaAgrupadaPorProducto: Record<
-      number,
-      {
-        cantidadVendida: number
-        costoProveedor: number
-        manejaPack: boolean
-        unidadesPorPack: number | null
-      }
-    > = {}
+    const deudaProveedores = detallesVentaPendientes.reduce(
+      (acc, item) =>
+        acc +
+        calcularCostoLiquidacion(
+          item.cantidad,
+          item.producto.costoProveedor,
+          item.producto.manejaPack,
+          item.producto.unidadesPorPack
+        ),
+      0
+    )
 
-    for (const item of detallesVentaPendientes) {
-      const productoId = item.productoId
-
-      if (!deudaAgrupadaPorProducto[productoId]) {
-        deudaAgrupadaPorProducto[productoId] = {
-          cantidadVendida: 0,
-          costoProveedor: item.producto.costoProveedor,
-          manejaPack: item.producto.manejaPack,
-          unidadesPorPack: item.producto.unidadesPorPack,
-        }
-      }
-
-      deudaAgrupadaPorProducto[productoId].cantidadVendida += item.cantidad
-    }
-
-    let deudaProveedores = 0
-
-    for (const item of Object.values(deudaAgrupadaPorProducto)) {
-      if (item.manejaPack && item.unidadesPorPack && item.unidadesPorPack > 0) {
-        const packs = Math.ceil(item.cantidadVendida / item.unidadesPorPack)
-        deudaProveedores += packs * item.unidadesPorPack * item.costoProveedor
-      } else {
-        deudaProveedores += item.cantidadVendida * item.costoProveedor
-      }
-    }
-
-    const acumuladoPorProducto = new Map<
+    const productosMes = new Map<
       number,
       {
         productoId: number
@@ -183,196 +220,135 @@ router.get('/resumen', async (_req, res) => {
         codigo: string
         cantidadVendida: number
         totalVendido: number
+        gananciaTotal: number
+        margen: number
+        stockActual: number
+        stockMinimo: number
       }
     >()
 
-    for (const item of detallesVenta) {
-      const productoId = item.productoId
-
-      if (!acumuladoPorProducto.has(productoId)) {
-        acumuladoPorProducto.set(productoId, {
-          productoId,
+    for (const item of detallesVentaMes) {
+      if (!productosMes.has(item.productoId)) {
+        productosMes.set(item.productoId, {
+          productoId: item.productoId,
           nombre: item.producto.nombre,
           codigo: item.producto.codigo,
           cantidadVendida: 0,
           totalVendido: 0,
+          gananciaTotal: 0,
+          margen: 0,
+          stockActual: item.producto.stockActual,
+          stockMinimo: item.producto.stockMinimo,
         })
       }
 
-      const actual = acumuladoPorProducto.get(productoId)!
+      const actual = productosMes.get(item.productoId)!
       actual.cantidadVendida += item.cantidad
       actual.totalVendido += item.subtotal
+      actual.gananciaTotal +=
+        item.subtotal - item.cantidad * item.producto.costoProveedor
     }
 
-    const productosMasVendidos = Array.from(acumuladoPorProducto.values())
+    const productosAnalizados = Array.from(productosMes.values()).map((item) => ({
+      ...item,
+      margen: margen(item.gananciaTotal, item.totalVendido),
+    }))
+
+    const productosMasVendidos = [...productosAnalizados]
       .sort((a, b) => b.cantidadVendida - a.cantidadVendida)
       .slice(0, 5)
+
+    const productosMasRentables = [...productosAnalizados]
+      .sort((a, b) => b.gananciaTotal - a.gananciaTotal)
+      .slice(0, 5)
+
+    const alertas: Array<{
+      tipo: string
+      mensaje: string
+      prioridad: 'ALTA' | 'MEDIA' | 'BAJA'
+      producto?: string
+    }> = []
+
+    if (productosBajoStock.length > 0) {
+      alertas.push({
+        tipo: 'Stock critico',
+        mensaje: `Stock critico en ${productosBajoStock.length} productos. Revisar reposicion.`,
+        prioridad: 'ALTA',
+      })
+    }
+
+    if (deudaProveedores > 0) {
+      alertas.push({
+        tipo: 'Deuda proveedores',
+        mensaje: `Hay ${deudaProveedores.toLocaleString('es-PY')} Gs. pendientes. Revisar liquidaciones.`,
+        prioridad: deudaProveedores > 500000 ? 'ALTA' : 'MEDIA',
+      })
+    }
+
+    for (const producto of productosAnalizados) {
+      const altaVenta = producto.cantidadVendida >= 3
+      const bajoStock = producto.stockActual <= producto.stockMinimo
+      const bajoMargen = producto.margen > 0 && producto.margen < 18
+      const stockAlto =
+        producto.stockMinimo > 0 && producto.stockActual >= producto.stockMinimo * 3
+      const pocaVenta = producto.cantidadVendida <= 1
+
+      if (altaVenta && bajoStock) {
+        alertas.push({
+          tipo: 'Reponer urgente',
+          mensaje: `${producto.nombre} vende bien y esta bajo de stock.`,
+          prioridad: 'ALTA',
+          producto: producto.nombre,
+        })
+      }
+
+      if (altaVenta && bajoMargen) {
+        alertas.push({
+          tipo: 'Revisar precio',
+          mensaje: `${producto.nombre} rota bien, pero deja bajo margen.`,
+          prioridad: 'MEDIA',
+          producto: producto.nombre,
+        })
+      }
+
+      if (stockAlto && pocaVenta) {
+        alertas.push({
+          tipo: 'Producto lento',
+          mensaje: `${producto.nombre} tiene stock alto y poca venta este mes.`,
+          prioridad: 'BAJA',
+          producto: producto.nombre,
+        })
+      }
+    }
 
     res.json({
       resumen: {
         totalVentasHoy,
         totalVentasMes,
+        gananciaHoy,
+        gananciaMes,
+        cantidadVentasHoy,
+        cantidadVentasMes,
+        ticketPromedioHoy,
+        ticketPromedioMes,
+        deudaProveedores,
         cantidadProductos: productos.length,
         cantidadProductosBajoStock: productosBajoStock.length,
-        deudaProveedores,
       },
+      alertas: alertas.slice(0, 6),
       productosBajoStock,
-      ultimasVentas,
       productosMasVendidos,
+      productosMasRentables,
+      productosMejorRotacion: productosMasVendidos,
+      ultimasVentas,
+      ultimosMovimientos,
+      ultimosIngresos,
+      ultimasLiquidaciones,
     })
   } catch (error) {
     console.error(error)
     res.status(500).json({
       error: 'Error al obtener el resumen del dashboard',
-    })
-  }
-})
-
-router.get('/ventas-por-dia', async (_req, res) => {
-  try {
-    const ahora = new Date()
-    const anio = ahora.getFullYear()
-    const mes = ahora.getMonth()
-
-    const inicioMes = new Date(anio, mes, 1, 0, 0, 0, 0)
-    const finMes = new Date(anio, mes + 1, 0, 23, 59, 59, 999)
-
-    const ventas = await prisma.venta.findMany({
-      where: {
-        fecha: {
-          gte: inicioMes,
-          lte: finMes,
-        },
-      },
-      orderBy: {
-        fecha: 'asc',
-      },
-    })
-
-    const agrupado = new Map<number, number>()
-
-    for (const venta of ventas) {
-      const dia = new Date(venta.fecha).getDate()
-
-      if (!agrupado.has(dia)) {
-        agrupado.set(dia, 0)
-      }
-
-      agrupado.set(dia, agrupado.get(dia)! + venta.total)
-    }
-
-    const resultado = Array.from(agrupado.entries()).map(([dia, total]) => ({
-      dia,
-      total,
-    }))
-
-    res.json(resultado)
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({
-      error: 'Error al obtener ventas por día',
-    })
-  }
-})
-
-router.get('/metodos-pago', async (_req, res) => {
-  try {
-    const ventas = await prisma.venta.findMany()
-
-    const resumen = {
-      EFECTIVO: 0,
-      TRANSFERENCIA: 0,
-      QR: 0,
-      MIXTO: 0,
-    }
-
-    for (const venta of ventas) {
-      const metodo = venta.metodoPago as keyof typeof resumen
-      if (resumen[metodo] !== undefined) {
-        resumen[metodo] += venta.total
-      }
-    }
-
-    res.json(resumen)
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({
-      error: 'Error al obtener métodos de pago',
-    })
-  }
-})
-
-router.get('/productos-mas-vendidos', async (_req, res) => {
-  try {
-    const detallesVenta = await prisma.detalleVenta.findMany({
-      include: {
-        producto: true,
-      },
-    })
-
-    const acumuladoPorProducto = new Map<
-      number,
-      {
-        productoId: number
-        nombre: string
-        codigo: string
-        cantidadVendida: number
-        totalVendido: number
-      }
-    >()
-
-    for (const item of detallesVenta) {
-      const productoId = item.productoId
-
-      if (!acumuladoPorProducto.has(productoId)) {
-        acumuladoPorProducto.set(productoId, {
-          productoId,
-          nombre: item.producto.nombre,
-          codigo: item.producto.codigo,
-          cantidadVendida: 0,
-          totalVendido: 0,
-        })
-      }
-
-      const actual = acumuladoPorProducto.get(productoId)!
-      actual.cantidadVendida += item.cantidad
-      actual.totalVendido += item.subtotal
-    }
-
-    const productosMasVendidos = Array.from(acumuladoPorProducto.values())
-      .sort((a, b) => b.cantidadVendida - a.cantidadVendida)
-      .slice(0, 10)
-
-    res.json(productosMasVendidos)
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({
-      error: 'Error al obtener productos más vendidos',
-    })
-  }
-})
-
-router.get('/ultimas-ventas', async (_req, res) => {
-  try {
-    const ultimasVentas = await prisma.venta.findMany({
-      orderBy: {
-        id: 'desc',
-      },
-      take: 10,
-      include: {
-        detalles: {
-          include: {
-            producto: true,
-          },
-        },
-      },
-    })
-
-    res.json(ultimasVentas)
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({
-      error: 'Error al obtener últimas ventas',
     })
   }
 })

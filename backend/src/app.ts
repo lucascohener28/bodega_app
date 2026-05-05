@@ -8,6 +8,7 @@ import ventasRoutes from './routes/ventas.routes'
 import movimientosRoutes from './routes/movimientos.routes'
 import liquidacionesRoutes from './routes/liquidaciones.routes'
 import dashboardRoutes from './routes/dashboard.routes'
+import reportesRoutes from './routes/reportes.routes'
 
 const app = express()
 
@@ -21,6 +22,7 @@ app.use('/ventas', ventasRoutes)
 app.use('/movimientos-inventario', movimientosRoutes)
 app.use('/liquidaciones', liquidacionesRoutes)
 app.use('/dashboard', dashboardRoutes)
+app.use('/reportes', reportesRoutes)
 app.get('/', (_req, res) => {
   res.json({ message: 'Backend de bodega funcionando' })
 })

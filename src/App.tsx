@@ -1,5 +1,5 @@
-import { generarPDFLiquidacion } from "./lib/pdf";
-import React, { useEffect, useMemo, useState } from "react";
+﻿import { generarPDFLiquidacion } from "./lib/pdf";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bell,
   Boxes,
@@ -18,7 +18,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { fetchJson } from "./lib/api";
+import { API_URL, fetchJson } from "./lib/api";
 
 type ModuleKey =
   | "dashboard"
@@ -26,6 +26,7 @@ type ModuleKey =
   | "productos"
   | "categorias"
   | "stock"
+  | "movimientos"
   | "ingresos"
   | "proveedores"
   | "liquidaciones"
@@ -55,10 +56,22 @@ type DashboardResumenResponse = {
   resumen: {
     totalVentasHoy: number;
     totalVentasMes: number;
+    gananciaHoy: number;
+    gananciaMes: number;
+    cantidadVentasHoy: number;
+    cantidadVentasMes: number;
+    ticketPromedioHoy: number;
+    ticketPromedioMes: number;
     cantidadProductos: number;
     cantidadProductosBajoStock: number;
     deudaProveedores: number;
   };
+  alertas: Array<{
+    tipo: string;
+    mensaje: string;
+    prioridad: "ALTA" | "MEDIA" | "BAJA";
+    producto?: string;
+  }>;
   productosBajoStock: Array<{
     id: number;
     nombre: string;
@@ -81,6 +94,53 @@ type DashboardResumenResponse = {
     codigo: string;
     cantidadVendida: number;
     totalVendido: number;
+    gananciaTotal: number;
+    margen: number;
+  }>;
+  productosMasRentables: Array<{
+    productoId: number;
+    nombre: string;
+    codigo: string;
+    cantidadVendida: number;
+    totalVendido: number;
+    gananciaTotal: number;
+    margen: number;
+  }>;
+  productosMejorRotacion: Array<{
+    productoId: number;
+    nombre: string;
+    codigo: string;
+    cantidadVendida: number;
+    totalVendido: number;
+    gananciaTotal: number;
+    margen: number;
+  }>;
+  ultimosMovimientos: Array<{
+    id: number;
+    tipoMovimiento: string;
+    cantidad: number;
+    createdAt: string;
+    producto: {
+      nombre: string;
+      codigo: string;
+    };
+  }>;
+  ultimosIngresos: Array<{
+    id: number;
+    fecha: string;
+    tipoIngreso: string;
+    proveedor: {
+      nombre: string;
+    };
+  }>;
+  ultimasLiquidaciones: Array<{
+    id: number;
+    periodo: string;
+    totalPagar: number;
+    fechaCierre: string | null;
+    proveedor: {
+      nombre: string;
+    };
   }>;
 };
 
@@ -135,6 +195,114 @@ type CategoriaOption = {
   nombre: string;
 };
 
+type ProveedorAdmin = ProveedorOption & {
+  telefono: string | null;
+  activo: boolean;
+  cantidadProductos: number;
+  cantidadLiquidaciones: number;
+  deudaPendiente: number;
+  productos?: Array<{
+    id: number;
+    nombre: string;
+    codigo: string;
+    stockActual: number;
+    costoProveedor: number;
+    categoria: {
+      nombre: string;
+    };
+  }>;
+  liquidaciones?: Array<{
+    id: number;
+    periodo: string;
+    totalPagar: number;
+    cerrada: boolean;
+    fechaCierre: string | null;
+  }>;
+};
+
+type CategoriaAdmin = CategoriaOption & {
+  cantidadProductos: number;
+  productos?: Array<{
+    id: number;
+    nombre: string;
+    codigo: string;
+    stockActual: number;
+    proveedor: {
+      nombre: string;
+    };
+  }>;
+};
+
+type MovimientoInventario = {
+  id: number;
+  tipoMovimiento: "ENTRADA" | "SALIDA" | "AJUSTE";
+  cantidad: number;
+  stockAnterior: number | null;
+  stockNuevo: number | null;
+  referenciaTipo: string | null;
+  referenciaId: number | null;
+  observacion: string | null;
+  createdAt: string;
+  producto: ProductoVenta;
+};
+
+type ReportTabKey = "resumen" | "productos" | "ganancias";
+
+type ProductoAnalisis = {
+  productoId: number;
+  nombre: string;
+  codigo: string;
+  categoria: string;
+  proveedor: string;
+  stockActual: number;
+  stockMinimo: number;
+  costoProveedor: number;
+  cantidadVendida: number;
+  totalVendido: number;
+  costoTotal: number;
+  precioPromedioVenta: number;
+  gananciaUnidad: number;
+  gananciaTotal: number;
+  margen: number;
+};
+
+type ReportAlert = {
+  productoId: number;
+  producto: string;
+  codigo: string;
+  tipo: string;
+  mensaje: string;
+  prioridad: "ALTA" | "MEDIA" | "BAJA";
+  cantidadVendida: number;
+  stockActual: number;
+  margen: number;
+  gananciaTotal: number;
+};
+
+type ReportesData = {
+  resumen: {
+    totalVendido: number;
+    gananciaTotal: number;
+    cantidadVentas: number;
+    ticketPromedio: number;
+    productoMasVendido: {
+      nombre: string;
+      cantidadVendida: number;
+    } | null;
+    productoMasRentable: {
+      nombre: string;
+      gananciaTotal: number;
+    } | null;
+  };
+  productos: {
+    masVendidos: ProductoAnalisis[];
+    masRentables: ProductoAnalisis[];
+    bajoRendimiento: ProductoAnalisis[];
+    alertas: ReportAlert[];
+  };
+  ganancias: ProductoAnalisis[];
+};
+
 function formatGs(value: number) {
   return `Gs. ${value.toLocaleString("es-PY")}`;
 }
@@ -151,7 +319,7 @@ function formatDateTime(value: string) {
 
 function formatPackBreakdown(unidades: number, unidadesPorPack: number | null) {
   if (!unidadesPorPack || unidadesPorPack <= 0) {
-    return "—";
+    return "-";
   }
 
   const packsCompletos = Math.floor(unidades / unidadesPorPack);
@@ -190,12 +358,12 @@ function getPackMetrics(params: {
   if (!manejaPack || !unidadesPorPack || unidadesPorPack <= 0) {
     return {
       packLabel: "Por unidad",
-      packsIngresados: "—",
-      packsALiquidar: "—",
+      packsIngresados: "-",
+      packsALiquidar: "-",
       unidadesLiquidadas: `${cantidadVendida} u.`,
-      packsRestantes: "—",
+      packsRestantes: "-",
       liquidacionPack: "Por unidad",
-      stockPack: "—",
+      stockPack: "-",
     };
   }
 
@@ -227,6 +395,7 @@ const navigation: NavItem[] = [
   { key: "productos", label: "Productos", icon: Package },
   { key: "categorias", label: "Categorías", icon: Boxes },
   { key: "stock", label: "Stock", icon: ClipboardList },
+  { key: "movimientos", label: "Movimientos", icon: FileBarChart2 },
   { key: "ingresos", label: "Ingresos de mercadería", icon: Truck },
   { key: "proveedores", label: "Proveedores", icon: Wallet },
   { key: "liquidaciones", label: "Liquidaciones", icon: CreditCard },
@@ -456,21 +625,45 @@ function StatCard({
   };
 
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-5">
+    <div className="flex h-full min-h-[132px] flex-col justify-between rounded-[20px] border border-slate-200 bg-white p-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:min-h-[170px] sm:rounded-[24px] sm:p-6">
       <div
-        className={`mb-3 inline-flex rounded-2xl border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] sm:mb-4 sm:text-xs sm:tracking-[0.2em] ${tones[tone]}`}
+        className={`mb-3 inline-flex rounded-2xl border px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] sm:mb-4 sm:px-3 sm:py-2 sm:text-xs sm:tracking-[0.2em] ${tones[tone]}`}
       >
         {title}
       </div>
-      <h3 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl lg:text-4xl">
+      <h3 className="break-words text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl lg:text-4xl">
         {value}
       </h3>
-      <p className="mt-2 text-xs text-slate-500 sm:text-sm">{helper}</p>
+      <p className="mt-2 text-xs leading-snug text-slate-500 sm:text-sm">{helper}</p>
     </div>
   );
 }
 
-function DashboardView() {
+function SecondaryStatCard({
+  title,
+  value,
+  helper,
+}: {
+  title: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="flex h-full min-h-[118px] flex-col justify-between rounded-[20px] border border-slate-200 bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:min-h-[150px] sm:rounded-[24px] sm:p-5">
+      <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 sm:text-xs sm:tracking-[0.16em]">
+        {title}
+      </p>
+      <div className="mt-3 sm:mt-4">
+        <h3 className="break-words text-xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+          {value}
+        </h3>
+        <p className="mt-2 text-xs leading-snug text-slate-500 sm:text-sm">{helper}</p>
+      </div>
+    </div>
+  );
+}
+
+function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void }) {
   const [data, setData] = useState<DashboardResumenResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -480,10 +673,7 @@ function DashboardView() {
       try {
         setLoading(true);
         setError(null);
-
-        const response = await fetchJson<DashboardResumenResponse>(
-          "/dashboard/resumen"
-        );
+        const response = await fetchJson<DashboardResumenResponse>("/dashboard/resumen");
         setData(response);
       } catch (err) {
         console.error(err);
@@ -499,15 +689,9 @@ function DashboardView() {
   if (loading) {
     return (
       <section className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
-          Panel principal
-        </p>
-        <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
-          Cargando dashboard...
-        </h2>
-        <p className="mt-3 text-slate-500">
-          Estamos trayendo los datos reales del sistema.
-        </p>
+        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">Panel principal</p>
+        <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">Cargando dashboard...</h2>
+        <p className="mt-3 text-slate-500">Estamos trayendo los datos reales del sistema.</p>
       </section>
     );
   }
@@ -515,287 +699,200 @@ function DashboardView() {
   if (error || !data) {
     return (
       <section className="rounded-[28px] border border-red-200 bg-white p-8 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-red-600">
-          Error
-        </p>
-        <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
-          No se pudo cargar el dashboard
-        </h2>
-        <p className="mt-3 text-slate-500">
-          Verifica que el backend esté corriendo en http://localhost:3001.
-        </p>
+        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-red-600">Error</p>
+        <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">No se pudo cargar el dashboard</h2>
+        <p className="mt-3 text-slate-500">Verifica que el backend este corriendo en http://localhost:3001.</p>
       </section>
     );
   }
 
-  const { resumen, productosBajoStock, ultimasVentas, productosMasVendidos } =
-    data;
+  const {
+    resumen,
+    alertas,
+    productosMasVendidos,
+    productosMasRentables,
+    productosMejorRotacion,
+    ultimasVentas,
+    ultimosMovimientos,
+    ultimosIngresos,
+    ultimasLiquidaciones,
+  } = data;
 
-  const weeklyData = [42, 65, 51, 74, 60, 88, 57];
+  const quickActions: Array<{ label: string; target: ModuleKey }> = [
+    { label: "Nueva venta", target: "ventas" },
+    { label: "Nuevo ingreso", target: "ingresos" },
+    { label: "Ver stock", target: "stock" },
+    { label: "Ver reportes", target: "reportes" },
+    { label: "Liquidaciones", target: "liquidaciones" },
+  ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
             Panel principal
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
-            Resumen General
+            Dashboard Pro
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-            Bienvenido de nuevo. Aquí tienes lo más importante del día en la
-            bodega.
+            Lo mas importante para decidir rapido: ventas, ganancia, alertas y acciones.
           </p>
         </div>
-
-        <button className="w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 sm:w-auto">
-          Nueva venta
-        </button>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">        
-        <StatCard
-          title="Ventas del día"
-          value={formatGs(resumen.totalVentasHoy)}
-          helper="Datos reales del día actual"
-          tone="blue"
-        />
-        <StatCard
-          title="Ventas del mes"
-          value={formatGs(resumen.totalVentasMes)}
-          helper="Acumulado real del mes"
-          tone="green"
-        />
-        <StatCard
-          title="Deuda proveedores"
-          value={formatGs(resumen.deudaProveedores)}
-          helper="Liquidaciones abiertas pendientes"
-          tone="red"
-        />
-        <StatCard
-          title="Alerta de stock"
-          value={`${resumen.cantidadProductosBajoStock} ítems`}
-          helper="Productos que requieren reposición"
-          tone="amber"
-        />
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <StatCard title="Ventas del dia" value={formatGs(resumen.totalVentasHoy)} helper="Facturacion de hoy" tone="blue" />
+        <StatCard title="Ganancia dia" value={formatGs(resumen.gananciaHoy)} helper="Bruta estimada" tone="green" />
+        <StatCard title="Ventas del mes" value={formatGs(resumen.totalVentasMes)} helper="Acumulado mensual" tone="blue" />
+        <StatCard title="Ganancia mes" value={formatGs(resumen.gananciaMes)} helper="Bruta estimada" tone="green" />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.6fr_0.9fr]">
-  <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
-    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <h3 className="text-xl font-bold text-slate-950 sm:text-2xl">
-          Tendencia Semanal
-        </h3>
-        <p className="mt-1 text-sm text-slate-500">
-          Vista visual provisional del comportamiento semanal
-        </p>
-      </div>
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <SecondaryStatCard title="Cantidad ventas" value={String(resumen.cantidadVentasHoy)} helper={`${resumen.cantidadVentasMes} en el mes`} />
+        <SecondaryStatCard title="Ticket promedio" value={formatGs(resumen.ticketPromedioHoy)} helper="Promedio de hoy" />
+        <SecondaryStatCard title="Deuda proveedores" value={formatGs(resumen.deudaProveedores)} helper="Pendiente de liquidar" />
+        <SecondaryStatCard title="Stock critico" value={`${resumen.cantidadProductosBajoStock}`} helper="Productos a revisar" />
+      </section>
 
-      <button className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600 sm:w-auto">
-        Últimos 7 días
-      </button>
-    </div>
-
-    <div className="flex h-64 items-end justify-between gap-2 rounded-[20px] bg-slate-50 p-3 sm:h-72 sm:gap-3 sm:rounded-[24px] sm:p-5">
-      {weeklyData.map((value, index) => (
-        <div key={index} className="flex flex-1 flex-col items-center gap-2 sm:gap-3">
-          <div className="flex h-44 w-full items-end rounded-2xl bg-white p-1.5 sm:h-56 sm:p-2">
-            <div
-              className="w-full rounded-xl bg-gradient-to-t from-blue-600 to-blue-400"
-              style={{ height: `${value}%` }}
-            />
+      <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-slate-950 sm:text-2xl">Alertas inteligentes</h3>
+            <p className="mt-1 text-sm text-slate-500">Conclusiones accionables para hoy.</p>
           </div>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 sm:text-xs sm:tracking-[0.2em]">
-            {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"][index]}
-          </span>
+          <button onClick={() => onNavigate("liquidaciones")} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 sm:w-auto">
+            Revisar acciones
+          </button>
         </div>
-      ))}
-    </div>
-  </div>
 
-  <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
-    <div className="mb-5">
-      <h3 className="text-xl font-bold text-slate-950 sm:text-2xl">
-        Más vendidos
-      </h3>
-      <p className="mt-1 text-sm text-slate-500">
-        Productos con mejor rotación real
-      </p>
-    </div>
-
-    <div className="space-y-3 sm:space-y-4">
-      {productosMasVendidos.length === 0 ? (
-        <p className="text-sm text-slate-500">
-          Aún no hay ventas registradas.
-        </p>
-      ) : (
-        productosMasVendidos.slice(0, 5).map((item, index) => (
-          <div
-            key={item.productoId}
-            className="flex items-center gap-3 rounded-[20px] border border-slate-200 bg-slate-50/70 p-3 sm:gap-4 sm:rounded-[22px] sm:p-4"
-          >
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-sm font-bold text-blue-600 shadow-sm sm:h-12 sm:w-12">
-              {index + 1}
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold text-slate-900">
-                {item.nombre}
-              </p>
-              <p className="text-sm text-slate-500">{item.codigo}</p>
-            </div>
-
-            <div className="text-right">
-              <p className="text-base font-bold text-slate-900 sm:text-lg">
-                {item.cantidadVendida}
-              </p>
-              <p className="text-xs font-medium text-emerald-600">ventas</p>
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  </div>
-</section>
-
-<section className="grid gap-4 2xl:grid-cols-[1.15fr_0.95fr]">
-  <div className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-4 lg:p-5">
-  <div className="mb-4">
-    <h3 className="text-lg font-bold text-slate-950 sm:text-xl lg:text-2xl">
-      Ventas recientes
-    </h3>
-    <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-      Últimas transacciones procesadas en la bodega
-    </p>
-  </div>
-
-  {ultimasVentas.length === 0 ? (
-    <div className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-      No hay ventas registradas todavía.
-    </div>
-  ) : (
-    <>
-      <div className="space-y-3 md:hidden">
-        {ultimasVentas.map((sale) => (
-          <div
-            key={sale.id}
-            className="rounded-[18px] border border-slate-200 bg-slate-50 p-4"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold text-slate-900">V-{sale.id}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {formatDateTime(sale.fecha)}
-                </p>
-              </div>
-
-              <span className="rounded-full bg-blue-100 px-3 py-1 text-[10px] font-semibold text-blue-700">
-                {sale.metodoPago}
-              </span>
-            </div>
-
-            <div className="mt-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                Monto
-              </p>
-              <p className="mt-1 text-lg font-bold text-slate-950">
-                {formatGs(sale.total)}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[620px] border-separate border-spacing-y-2">
-          <thead>
-            <tr className="text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-              <th className="pb-2">ID</th>
-              <th className="pb-2">Fecha y hora</th>
-              <th className="pb-2">Monto</th>
-              <th className="pb-2">Método</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ultimasVentas.map((sale) => (
-              <tr key={sale.id} className="rounded-2xl bg-slate-50">
-                <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">
-                  V-{sale.id}
-                </td>
-                <td className="px-4 py-4 text-slate-600 whitespace-nowrap">
-                  {formatDateTime(sale.fecha)}
-                </td>
-                <td className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">
-                  {formatGs(sale.total)}
-                </td>
-                <td className="rounded-r-2xl px-4 py-4 whitespace-nowrap">
-                  <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                    {sale.metodoPago}
+        {alertas.length === 0 ? (
+          <div className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No hay alertas importantes por ahora.</div>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {alertas.map((alerta, index) => (
+              <div key={`${alerta.tipo}-${index}`} className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">{alerta.tipo}</p>
+                    <p className="mt-2 text-sm text-slate-700">{alerta.mensaje}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${alerta.prioridad === "ALTA" ? "bg-red-100 text-red-700" : alerta.prioridad === "MEDIA" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                    {alerta.prioridad}
                   </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  )}
-</div>
-
-  <div className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-4 lg:p-5">
-    <div className="mb-4">
-      <h3 className="text-lg font-bold text-slate-950 sm:text-xl lg:text-2xl">
-        Productos por acabarse
-      </h3>
-      <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-        Stock en o por debajo del mínimo configurado
-      </p>
-    </div>
-
-    <div className="space-y-3">
-      {productosBajoStock.length === 0 ? (
-        <p className="text-sm text-slate-500">
-          No hay alertas de stock por ahora.
-        </p>
-      ) : (
-        productosBajoStock.map((item) => (
-          <div
-            key={item.id}
-            className="rounded-[18px] border border-slate-200 bg-slate-50/70 p-3 sm:rounded-[20px] sm:p-4"
-          >
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-slate-900">
-                  {item.nombre}
-                </p>
-                <p className="text-sm text-slate-500">{item.codigo}</p>
+                </div>
               </div>
-
-              <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                Bajo stock
-              </span>
-            </div>
-
-            <div className="mt-3 flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-slate-500">
-                Stock actual: {item.stockActual}
-              </span>
-              <span className="font-medium text-slate-700">
-                Mínimo: {item.stockMinimo}
-              </span>
-            </div>
+            ))}
           </div>
-        ))
-      )}
-    </div>
-  </div>
-</section>
+        )}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-3">
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
+          <h3 className="text-xl font-bold text-slate-950">Mas vendidos</h3>
+          <div className="mt-4 space-y-3">
+            {productosMasVendidos.slice(0, 5).map((item, index) => (
+              <div key={item.productoId} className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-sm font-bold text-blue-600">{index + 1}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-slate-900">{item.nombre}</p>
+                  <p className="text-sm text-slate-500">{formatGs(item.totalVendido)}</p>
+                </div>
+                <p className="text-sm font-bold text-slate-950">{item.cantidadVendida} u.</p>
+              </div>
+            ))}
+            {productosMasVendidos.length === 0 && <p className="text-sm text-slate-500">Sin ventas este mes.</p>}
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
+          <h3 className="text-xl font-bold text-slate-950">Mas rentables</h3>
+          <div className="mt-4 space-y-3">
+            {productosMasRentables.slice(0, 5).map((item) => (
+              <div key={item.productoId} className="rounded-2xl bg-slate-50 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-900">{item.nombre}</p>
+                    <p className="text-sm text-slate-500">Margen {item.margen.toFixed(1)}%</p>
+                  </div>
+                  <p className="font-bold text-emerald-700">{formatGs(item.gananciaTotal)}</p>
+                </div>
+              </div>
+            ))}
+            {productosMasRentables.length === 0 && <p className="text-sm text-slate-500">Sin datos de rentabilidad.</p>}
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
+          <h3 className="text-xl font-bold text-slate-950">Mejor rotacion</h3>
+          <div className="mt-4 space-y-3">
+            {productosMejorRotacion.slice(0, 5).map((item) => (
+              <div key={item.productoId} className="rounded-2xl bg-slate-50 px-4 py-3">
+                <p className="font-semibold text-slate-900">{item.nombre}</p>
+                <p className="mt-1 text-sm text-slate-500">{item.cantidadVendida} unidades · {formatGs(item.totalVendido)}</p>
+              </div>
+            ))}
+            {productosMejorRotacion.length === 0 && <p className="text-sm text-slate-500">Sin rotacion registrada.</p>}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
+          <h3 className="text-xl font-bold text-slate-950">Ventas recientes</h3>
+          <div className="mt-4 space-y-3">
+            {ultimasVentas.map((sale) => (
+              <div key={sale.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+                <div>
+                  <p className="font-semibold text-slate-900">Venta #{sale.id}</p>
+                  <p className="text-sm text-slate-500">{formatDateTime(sale.fecha)} · {sale.metodoPago}</p>
+                </div>
+                <p className="font-bold text-slate-950">{formatGs(sale.total)}</p>
+              </div>
+            ))}
+            {ultimasVentas.length === 0 && <p className="text-sm text-slate-500">Sin ventas recientes.</p>}
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
+          <h3 className="text-xl font-bold text-slate-950">Actividad reciente</h3>
+          <div className="mt-4 space-y-3">
+            {ultimosMovimientos.slice(0, 3).map((item) => (
+              <div key={`mov-${item.id}`} className="rounded-2xl bg-slate-50 px-4 py-3">
+                <p className="font-semibold text-slate-900">{item.tipoMovimiento} · {item.producto.nombre}</p>
+                <p className="text-sm text-slate-500">{item.cantidad} u. · {formatDateTime(item.createdAt)}</p>
+              </div>
+            ))}
+            {ultimosIngresos.slice(0, 2).map((item) => (
+              <div key={`ing-${item.id}`} className="rounded-2xl bg-slate-50 px-4 py-3">
+                <p className="font-semibold text-slate-900">Ingreso #{item.id}</p>
+                <p className="text-sm text-slate-500">{item.proveedor.nombre} · {formatDateTime(item.fecha)}</p>
+              </div>
+            ))}
+            {ultimasLiquidaciones.slice(0, 2).map((item) => (
+              <div key={`liq-${item.id}`} className="rounded-2xl bg-slate-50 px-4 py-3">
+                <p className="font-semibold text-slate-900">Liquidacion #{item.id}</p>
+                <p className="text-sm text-slate-500">{item.proveedor.nombre} · {formatGs(item.totalPagar)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
+        <h3 className="text-xl font-bold text-slate-950">Accesos rapidos</h3>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {quickActions.map((action) => (
+            <button key={action.target} onClick={() => onNavigate(action.target)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white hover:text-blue-700">
+              {action.label}
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
-
 
 
 function SalesView() {
@@ -1413,6 +1510,615 @@ function SalesView() {
 }
 
 
+function MovimientosView() {
+  const [movements, setMovements] = useState<MovimientoInventario[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState("TODOS");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const loadMovements = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams();
+
+      if (searchTerm.trim()) {
+        params.set("search", searchTerm.trim());
+      }
+
+      if (typeFilter !== "TODOS") {
+        params.set("tipo", typeFilter);
+      }
+
+      if (startDate) {
+        params.set("start", startDate);
+      }
+
+      if (endDate) {
+        params.set("end", endDate);
+      }
+
+      const query = params.toString();
+      const data = await fetchJson<MovimientoInventario[]>(
+        `/movimientos-inventario${query ? `?${query}` : ""}`
+      );
+
+      setMovements(data);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudieron cargar los movimientos de stock");
+    } finally {
+      setLoading(false);
+    }
+  }, [searchTerm, typeFilter, startDate, endDate]);
+
+  useEffect(() => {
+    loadMovements();
+  }, [loadMovements]);
+
+  const totals = movements.reduce(
+    (acc, item) => {
+      if (item.tipoMovimiento === "ENTRADA") acc.entradas += item.cantidad;
+      if (item.tipoMovimiento === "SALIDA") acc.salidas += item.cantidad;
+      if (item.tipoMovimiento === "AJUSTE") acc.ajustes += 1;
+      return acc;
+    },
+    { entradas: 0, salidas: 0, ajustes: 0 }
+  );
+
+  const movementTone = (tipo: MovimientoInventario["tipoMovimiento"]) => {
+    if (tipo === "ENTRADA") return "bg-emerald-100 text-emerald-700";
+    if (tipo === "SALIDA") return "bg-red-100 text-red-700";
+    return "bg-blue-100 text-blue-700";
+  };
+
+  return (
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+            Historial
+          </p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
+            Movimientos de stock
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
+            Registro de entradas por ingresos, salidas por ventas y ajustes manuales.
+          </p>
+        </div>
+      </section>
+
+      <section className="grid gap-5 md:grid-cols-3">
+        <div className="rounded-[24px] border border-emerald-100 bg-emerald-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">
+            Total de entradas
+          </p>
+          <h3 className="mt-4 text-4xl font-bold tracking-tight text-emerald-700">
+            {totals.entradas}
+          </h3>
+        </div>
+
+        <div className="rounded-[24px] border border-red-100 bg-red-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-600">
+            Total de salidas
+          </p>
+          <h3 className="mt-4 text-4xl font-bold tracking-tight text-red-700">
+            {totals.salidas}
+          </h3>
+        </div>
+
+        <div className="rounded-[24px] border border-blue-100 bg-blue-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">
+            Total de ajustes
+          </p>
+          <h3 className="mt-4 text-4xl font-bold tracking-tight text-blue-700">
+            {totals.ajustes}
+          </h3>
+        </div>
+      </section>
+
+      <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
+        <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar producto o codigo..."
+            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+          />
+
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+          >
+            <option value="TODOS">Todos</option>
+            <option value="ENTRADA">Entrada</option>
+            <option value="SALIDA">Salida</option>
+            <option value="AJUSTE">Ajuste</option>
+          </select>
+
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+          />
+
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+          />
+        </div>
+
+        {loading && (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+            Cargando movimientos...
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-600">
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && movements.length === 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+            No hay movimientos que coincidan con los filtros actuales.
+          </div>
+        )}
+
+        {!loading && !error && movements.length > 0 && (
+          <>
+            <div className="space-y-3 lg:hidden">
+              {movements.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900">
+                        {item.producto.nombre}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        Codigo: {item.producto.codigo}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${movementTone(
+                        item.tipoMovimiento
+                      )}`}
+                    >
+                      {item.tipoMovimiento}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        Cantidad
+                      </p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {item.cantidad}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        Fecha
+                      </p>
+                      <p className="mt-1 text-slate-700">
+                        {formatDateTime(item.createdAt)}
+                      </p>
+                    </div>
+
+                    <div className="col-span-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        Motivo
+                      </p>
+                      <p className="mt-1 text-slate-700">
+                        {item.observacion ?? "Sin motivo"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="w-full min-w-[1180px] border-separate border-spacing-y-3">
+                <thead>
+                  <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    <th className="pb-2">Fecha</th>
+                    <th className="pb-2">Producto</th>
+                    <th className="pb-2">Codigo</th>
+                    <th className="pb-2">Categoria</th>
+                    <th className="pb-2">Proveedor</th>
+                    <th className="pb-2">Tipo de movimiento</th>
+                    <th className="pb-2">Cantidad</th>
+                    <th className="pb-2">Observacion / motivo</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {movements.map((item) => (
+                    <tr key={item.id} className="rounded-2xl bg-slate-50">
+                      <td className="rounded-l-2xl px-4 py-4 text-sm text-slate-600">
+                        {formatDateTime(item.createdAt)}
+                      </td>
+
+                      <td className="px-4 py-4 font-semibold text-slate-900">
+                        {item.producto.nombre}
+                      </td>
+
+                      <td className="px-4 py-4 text-slate-600">
+                        {item.producto.codigo}
+                      </td>
+
+                      <td className="px-4 py-4 text-slate-600">
+                        {item.producto.categoria.nombre}
+                      </td>
+
+                      <td className="px-4 py-4 text-slate-600">
+                        {item.producto.proveedor?.nombre ?? "Sin proveedor"}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${movementTone(
+                            item.tipoMovimiento
+                          )}`}
+                        >
+                          {item.tipoMovimiento}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-4 font-semibold text-slate-900">
+                        {item.cantidad}
+                      </td>
+
+                      <td className="rounded-r-2xl px-4 py-4 text-sm text-slate-600">
+                        {item.observacion ?? "Sin motivo"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+
+const reportTabs: Array<{ key: ReportTabKey; label: string }> = [
+  { key: "resumen", label: "Resumen" },
+  { key: "productos", label: "Productos" },
+  { key: "ganancias", label: "Ganancias" },
+];
+
+function formatPercent(value: number) {
+  return `${value.toFixed(1)}%`;
+}
+
+function ProductMiniTable({
+  title,
+  rows,
+  metric,
+}: {
+  title: string;
+  rows: ProductoAnalisis[];
+  metric: "cantidadVendida" | "gananciaTotal" | "margen";
+}) {
+  return (
+    <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
+      <h3 className="text-lg font-bold text-slate-950">{title}</h3>
+
+      <div className="mt-4 space-y-3">
+        {rows.slice(0, 6).length === 0 ? (
+          <div className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">
+            No hay datos para este rango.
+          </div>
+        ) : (
+          rows.slice(0, 6).map((item) => (
+            <div key={item.productoId} className="rounded-2xl bg-slate-50 px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-900">{item.nombre}</p>
+                  <p className="text-sm text-slate-500">{item.codigo}</p>
+                </div>
+                <p className="shrink-0 text-sm font-bold text-slate-950">
+                  {metric === "gananciaTotal"
+                    ? formatGs(item.gananciaTotal)
+                    : metric === "margen"
+                    ? formatPercent(item.margen)
+                    : `${item.cantidadVendida} u.`}
+                </p>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                <div
+                  className="h-full rounded-full bg-blue-600"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      Math.max(
+                        metric === "gananciaTotal"
+                          ? item.gananciaTotal / 1000
+                          : metric === "margen"
+                          ? item.margen
+                          : item.cantidadVendida * 8,
+                        6
+                      )
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReportesView() {
+  const [activeTab, setActiveTab] = useState<ReportTabKey>("resumen");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [data, setData] = useState<ReportesData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadReport = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams();
+
+      if (startDate) params.set("start", startDate);
+      if (endDate) params.set("end", endDate);
+
+      const query = params.toString();
+      const response = await fetchJson<ReportesData>(
+        `/reportes${query ? `?${query}` : ""}`
+      );
+
+      setData(response);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo cargar el analisis de reportes");
+    } finally {
+      setLoading(false);
+    }
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    loadReport();
+  }, [loadReport]);
+
+  const chartRows =
+    activeTab === "ganancias"
+      ? data?.ganancias.slice(0, 8) ?? []
+      : activeTab === "productos"
+      ? data?.productos.masVendidos.slice(0, 8) ?? []
+      : data?.productos.masRentables.slice(0, 8) ?? [];
+
+  const maxChartValue = Math.max(
+    ...chartRows.map((item) =>
+      activeTab === "productos" ? item.cantidadVendida : item.gananciaTotal
+    ),
+    1
+  );
+
+  return (
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+            Analisis inteligente
+          </p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
+            Reportes
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
+            Resumen ejecutivo, lectura de productos y ganancias calculadas por rango.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300"
+          />
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300"
+          />
+        </div>
+      </section>
+
+      <section className="flex gap-2 overflow-x-auto rounded-[24px] border border-slate-200 bg-white p-2 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+        {reportTabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`min-w-[130px] rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+              activeTab === tab.key
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
+                : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </section>
+
+      {loading && (
+        <section className="rounded-[28px] border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+          Cargando analisis...
+        </section>
+      )}
+
+      {error && (
+        <section className="rounded-[28px] border border-red-200 bg-red-50 p-8 text-sm text-red-600">
+          {error}
+        </section>
+      )}
+
+      {!loading && !error && data && activeTab === "resumen" && (
+        <>
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard title="Total vendido" value={formatGs(data.resumen.totalVendido)} helper="Rango seleccionado" tone="blue" />
+            <StatCard title="Ganancia total" value={formatGs(data.resumen.gananciaTotal)} helper="Venta menos costo proveedor" tone="green" />
+            <StatCard title="Ventas" value={String(data.resumen.cantidadVentas)} helper="Cantidad de tickets" tone="amber" />
+            <StatCard title="Ticket promedio" value={formatGs(data.resumen.ticketPromedio)} helper="Promedio del rango" tone="blue" />
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Producto mas vendido</p>
+              <h3 className="mt-3 text-2xl font-bold text-slate-950">
+                {data.resumen.productoMasVendido?.nombre ?? "Sin ventas"}
+              </h3>
+              <p className="mt-2 text-sm text-slate-500">
+                {data.resumen.productoMasVendido ? `${data.resumen.productoMasVendido.cantidadVendida} unidades vendidas` : "No hay datos en este rango"}
+              </p>
+            </div>
+
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Producto mas rentable</p>
+              <h3 className="mt-3 text-2xl font-bold text-slate-950">
+                {data.resumen.productoMasRentable?.nombre ?? "Sin ventas"}
+              </h3>
+              <p className="mt-2 text-sm text-slate-500">
+                {data.resumen.productoMasRentable ? `${formatGs(data.resumen.productoMasRentable.gananciaTotal)} de ganancia` : "No hay datos en este rango"}
+              </p>
+            </div>
+          </section>
+        </>
+      )}
+
+      {!loading && !error && data && activeTab === "productos" && (
+        <>
+          <section className="grid gap-4 xl:grid-cols-3">
+            <ProductMiniTable title="Mas vendidos" rows={data.productos.masVendidos} metric="cantidadVendida" />
+            <ProductMiniTable title="Mas rentables" rows={data.productos.masRentables} metric="gananciaTotal" />
+            <ProductMiniTable title="Bajo rendimiento" rows={data.productos.bajoRendimiento} metric="margen" />
+          </section>
+
+          <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
+            <h3 className="text-xl font-bold text-slate-950">Alertas automaticas</h3>
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {data.productos.alertas.length === 0 ? (
+                <div className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                  No hay alertas para este rango.
+                </div>
+              ) : (
+                data.productos.alertas.map((alerta, index) => (
+                  <div key={`${alerta.productoId}-${alerta.tipo}-${index}`} className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">{alerta.tipo}</p>
+                        <h4 className="mt-2 font-bold text-slate-950">{alerta.producto}</h4>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${alerta.prioridad === "ALTA" ? "bg-red-100 text-red-700" : alerta.prioridad === "MEDIA" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                        {alerta.prioridad}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm text-slate-600">{alerta.mensaje}</p>
+                    <p className="mt-3 text-xs text-slate-500">
+                      Vendido: {alerta.cantidadVendida} u. · Stock: {alerta.stockActual} · Margen: {formatPercent(alerta.margen)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </>
+      )}
+
+      {!loading && !error && data && activeTab === "ganancias" && (
+        <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
+          <div className="mb-5">
+            <h3 className="text-xl font-bold text-slate-950">Ganancias por producto</h3>
+            <p className="mt-1 text-sm text-slate-500">Producto | Vendido | Total vendido | Costo total | Ganancia total | Margen %</p>
+          </div>
+
+          {data.ganancias.length === 0 ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No hay ventas en este rango.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] border-separate border-spacing-y-3">
+                <thead>
+                  <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    <th className="pb-2">Producto</th>
+                    <th className="pb-2">Vendido</th>
+                    <th className="pb-2">Total vendido</th>
+                    <th className="pb-2">Costo total</th>
+                    <th className="pb-2">Ganancia total</th>
+                    <th className="pb-2">Margen %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.ganancias.map((item) => (
+                    <tr key={item.productoId} className="rounded-2xl bg-slate-50">
+                      <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">{item.nombre}</td>
+                      <td className="px-4 py-4 text-slate-700">{item.cantidadVendida} u.</td>
+                      <td className="px-4 py-4 text-slate-700">{formatGs(item.totalVendido)}</td>
+                      <td className="px-4 py-4 text-slate-700">{formatGs(item.costoTotal)}</td>
+                      <td className="px-4 py-4 font-semibold text-slate-950">{formatGs(item.gananciaTotal)}</td>
+                      <td className="rounded-r-2xl px-4 py-4 text-slate-700">{formatPercent(item.margen)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {!loading && !error && data && activeTab !== "resumen" && (
+        <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
+          <h3 className="text-xl font-bold text-slate-950">Grafico simple</h3>
+          <div className="mt-5 flex h-72 items-end gap-3 overflow-x-auto rounded-[22px] bg-slate-50 p-4">
+            {chartRows.length === 0 ? (
+              <div className="self-center text-sm text-slate-500">No hay datos para graficar.</div>
+            ) : (
+              chartRows.map((item) => {
+                const value = activeTab === "productos" ? item.cantidadVendida : item.gananciaTotal;
+                return (
+                  <div key={item.productoId} className="flex h-full min-w-[84px] flex-col justify-end gap-3">
+                    <div className="flex flex-1 items-end rounded-2xl bg-white p-2">
+                      <div className="w-full rounded-xl bg-blue-600" style={{ height: `${Math.max((value / maxChartValue) * 100, 5)}%` }} />
+                    </div>
+                    <div className="h-10 overflow-hidden text-center text-[11px] font-semibold text-slate-500">{item.nombre}</div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
 function StockView() {
   const [products, setProducts] = useState<ProductoVenta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1574,7 +2280,6 @@ function StockView() {
       setAdjustingStock(false);
     }
   }
-  
   function handleExportStock() {
   if (filteredProducts.length === 0) {
     return;
@@ -2012,6 +2717,524 @@ function StockView() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ProvidersView() {
+  const [providers, setProviders] = useState<ProveedorAdmin[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<ProveedorAdmin | null>(null);
+  const [editingProvider, setEditingProvider] = useState<ProveedorAdmin | null>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadProviders() {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchJson<ProveedorAdmin[]>("/proveedores");
+      setProviders(data);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudieron cargar los proveedores");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadProviders();
+  }, []);
+
+  async function loadProviderDetail(id: number) {
+    const data = await fetchJson<ProveedorAdmin>(`/proveedores/${id}`);
+    setSelectedProvider(data);
+  }
+
+  function resetForm() {
+    setEditingProvider(null);
+    setName("");
+    setPhone("");
+  }
+
+  function startEdit(provider: ProveedorAdmin) {
+    setEditingProvider(provider);
+    setName(provider.nombre);
+    setPhone(provider.telefono ?? "");
+  }
+
+  async function handleSaveProvider() {
+    try {
+      if (!name.trim()) {
+        setError("El nombre es obligatorio");
+        return;
+      }
+
+      setSaving(true);
+      setError(null);
+
+      const response = await fetch(
+        `${API_URL}/proveedores${editingProvider ? `/${editingProvider.id}` : ""}`,
+        {
+          method: editingProvider ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            nombre: name,
+            telefono: phone,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo guardar el proveedor");
+      }
+
+      resetForm();
+      await loadProviders();
+
+      if (selectedProvider?.id === data.id) {
+        await loadProviderDetail(data.id);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "No se pudo guardar el proveedor");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleProvider(provider: ProveedorAdmin) {
+    try {
+      const response = await fetch(`${API_URL}/proveedores/${provider.id}/estado`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          activo: !provider.activo,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo cambiar el estado");
+      }
+
+      await loadProviders();
+
+      if (selectedProvider?.id === provider.id) {
+        await loadProviderDetail(provider.id);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "No se pudo cambiar el estado");
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+            Relacion comercial
+          </p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl lg:text-4xl">
+            Proveedores
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
+            Gestion de proveedores, productos asociados, deuda y liquidaciones.
+          </p>
+        </div>
+      </section>
+
+      <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
+        <h3 className="text-lg font-bold text-slate-950 sm:text-xl">
+          {editingProvider ? "Editar proveedor" : "Nuevo proveedor"}
+        </h3>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(180px,1fr)_minmax(160px,0.8fr)_auto] lg:items-center">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nombre"
+            className="h-12 min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+          />
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Telefono"
+            className="h-12 min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:w-auto">
+            <button
+              onClick={handleSaveProvider}
+              disabled={saving}
+              className="h-12 rounded-2xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+            >
+              {saving ? "Guardando..." : editingProvider ? "Actualizar" : "Crear"}
+            </button>
+            {editingProvider && (
+              <button
+                onClick={resetForm}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+        </div>
+
+        {error && (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-xl font-bold text-slate-950">Listado</h3>
+            <span className="text-sm text-slate-500">{providers.length} proveedores</span>
+          </div>
+
+          {loading ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">
+              Cargando proveedores...
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 2xl:hidden">
+                {providers.map((provider) => (
+                  <div key={provider.id} className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="break-words font-semibold text-slate-900">
+                          {provider.nombre}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {provider.telefono ?? "Sin telefono"}
+                        </p>
+                      </div>
+                      <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${provider.activo ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                        {provider.activo ? "Activo" : "Inactivo"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                          Productos
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {provider.cantidadProductos}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                          Deuda
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {formatGs(provider.deudaPendiente)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <button onClick={() => loadProviderDetail(provider.id)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                        Ver
+                      </button>
+                      <button onClick={() => startEdit(provider)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                        Editar
+                      </button>
+                      <button onClick={() => toggleProvider(provider)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                        {provider.activo ? "Inactivar" : "Activar"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden 2xl:block">
+              <table className="w-full table-fixed border-separate border-spacing-y-3">
+                <thead>
+                  <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    <th className="w-[28%] pb-2">Proveedor</th>
+                    <th className="w-[16%] pb-2">Telefono</th>
+                    <th className="w-[10%] pb-2 text-center">Productos</th>
+                    <th className="w-[16%] pb-2">Deuda</th>
+                    <th className="w-[12%] pb-2">Estado</th>
+                    <th className="w-[18%] pb-2">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {providers.map((provider) => (
+                    <tr key={provider.id} className="rounded-2xl bg-slate-50">
+                      <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900 break-words">
+                        {provider.nombre}
+                      </td>
+                      <td className="px-4 py-4 text-slate-600">{provider.telefono ?? "-"}</td>
+                      <td className="px-4 py-4 text-center text-slate-600">{provider.cantidadProductos}</td>
+                      <td className="px-4 py-4 font-semibold text-slate-950">
+                        {formatGs(provider.deudaPendiente)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${provider.activo ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                          {provider.activo ? "Activo" : "Inactivo"}
+                        </span>
+                      </td>
+                      <td className="rounded-r-2xl px-4 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          <button onClick={() => loadProviderDetail(provider.id)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                            Ver
+                          </button>
+                          <button onClick={() => startEdit(provider)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                            Editar
+                          </button>
+                          <button onClick={() => toggleProvider(provider)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                            {provider.activo ? "Inactivar" : "Activar"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            </>
+          )}
+      </section>
+
+      {selectedProvider && (
+        <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+                Detalle proveedor
+              </p>
+              <h3 className="mt-2 text-2xl font-bold text-slate-950">
+                {selectedProvider.nombre}
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Deuda pendiente: {formatGs(selectedProvider.deudaPendiente)}
+              </p>
+            </div>
+            <button onClick={() => setSelectedProvider(null)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
+              Cerrar
+            </button>
+          </div>
+
+          <div className="mt-6 grid gap-5 xl:grid-cols-2">
+            <div>
+              <h4 className="font-bold text-slate-950">Productos asociados</h4>
+              <div className="mt-3 space-y-3">
+                {(selectedProvider.productos ?? []).map((product) => (
+                  <div key={product.id} className="rounded-2xl bg-slate-50 px-4 py-3">
+                    <p className="font-semibold text-slate-900">{product.nombre}</p>
+                    <p className="text-sm text-slate-500">
+                      {product.codigo} · {product.categoria.nombre} · Stock {product.stockActual}
+                    </p>
+                  </div>
+                ))}
+                {(selectedProvider.productos ?? []).length === 0 && (
+                  <div className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                    Sin productos asociados.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-slate-950">Liquidaciones relacionadas</h4>
+              <div className="mt-3 space-y-3">
+                {(selectedProvider.liquidaciones ?? []).map((item) => (
+                  <div key={item.id} className="rounded-2xl bg-slate-50 px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-900">#{item.id} · {item.periodo}</p>
+                        <p className="text-sm text-slate-500">{item.cerrada ? "Cerrada" : "Pendiente"}</p>
+                      </div>
+                      <p className="font-semibold text-slate-950">{formatGs(item.totalPagar)}</p>
+                    </div>
+                  </div>
+                ))}
+                {(selectedProvider.liquidaciones ?? []).length === 0 && (
+                  <div className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                    Sin liquidaciones relacionadas.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function CategoriesView() {
+  const [categories, setCategories] = useState<CategoriaAdmin[]>([]);
+  const [editingCategory, setEditingCategory] = useState<CategoriaAdmin | null>(null);
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadCategories() {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchJson<CategoriaAdmin[]>("/categorias");
+      setCategories(data);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudieron cargar las categorias");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  function startEdit(category: CategoriaAdmin) {
+    setEditingCategory(category);
+    setName(category.nombre);
+  }
+
+  function resetForm() {
+    setEditingCategory(null);
+    setName("");
+  }
+
+  async function handleSaveCategory() {
+    try {
+      if (!name.trim()) {
+        setError("El nombre es obligatorio");
+        return;
+      }
+
+      setSaving(true);
+      setError(null);
+
+      const response = await fetch(
+        `${API_URL}/categorias${editingCategory ? `/${editingCategory.id}` : ""}`,
+        {
+          method: editingCategory ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            nombre: name,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo guardar la categoria");
+      }
+
+      resetForm();
+      await loadCategories();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "No se pudo guardar la categoria");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+            Organizacion
+          </p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl lg:text-4xl">
+            Categorias
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
+            Gestion de categorias y cantidad de productos asociados.
+          </p>
+        </div>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[0.8fr_1.5fr]">
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+          <h3 className="text-xl font-bold text-slate-950">
+            {editingCategory ? "Editar categoria" : "Nueva categoria"}
+          </h3>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nombre"
+            className="mt-5 h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+          />
+
+          {error && (
+            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {error}
+            </div>
+          )}
+
+          <div className="mt-5 grid gap-3 sm:flex">
+            <button
+              onClick={handleSaveCategory}
+              disabled={saving}
+              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+            >
+              {saving ? "Guardando..." : editingCategory ? "Actualizar" : "Crear"}
+            </button>
+            {editingCategory && (
+              <button onClick={resetForm} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
+                Cancelar
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-xl font-bold text-slate-950">Listado</h3>
+            <span className="text-sm text-slate-500">{categories.length} categorias</span>
+          </div>
+
+          {loading ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">
+              Cargando categorias...
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {categories.map((category) => (
+                <div key={category.id} className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">{category.nombre}</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {category.cantidadProductos} productos
+                      </p>
+                    </div>
+                    <button onClick={() => startEdit(category)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                      Editar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
@@ -3630,11 +4853,6 @@ function LiquidacionesView() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  async function loadProviders() {
-    const data = await fetchJson<ProveedorOption[]>("/proveedores");
-    setProviders(data);
-  }
-
   async function loadPendientes(
     providerList: ProveedorOption[],
     periodoActual: string,
@@ -3999,20 +5217,6 @@ function LiquidacionesView() {
     printWindow.print();
   }
 
-  function handleDownloadPdf(liquidacion: LiquidacionHistorial) {
-    const printWindow = window.open("", "_blank", "width=1200,height=800");
-
-    if (!printWindow) {
-      setError("El navegador bloqueó la ventana para guardar PDF");
-      return;
-    }
-
-    printWindow.document.open();
-    printWindow.document.write(buildPrintableHtml(liquidacion));
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-  }
 
   return (
     <div className="space-y-6">
@@ -4025,12 +5229,15 @@ function LiquidacionesView() {
             Liquidaciones
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-            Gestiona liquidaciones pendientes y consulta el historial de cierres
-            realizados de forma clara y ordenada.
+            Gestiona la deuda acumulada pendiente y consulta el historial de
+            cierres realizados.
           </p>
         </div>
 
         <div className="w-full sm:w-auto">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+            Mes de cierre
+          </p>
           <input
             type="month"
             value={periodo}
@@ -4097,7 +5304,7 @@ function LiquidacionesView() {
           ) : liquidacionesPendientes.length === 0 ? (
             <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
               <p className="text-sm text-slate-500">
-                No hay deudas pendientes para el período seleccionado.
+                No hay deudas pendientes acumuladas.
               </p>
             </section>
           ) : (
@@ -4166,7 +5373,7 @@ function LiquidacionesView() {
                           {selectedLiquidacion.proveedor.nombre}
                         </h3>
                         <p className="mt-1 text-sm text-slate-500">
-                          Período {periodo}
+                          Cierre registrado en {periodo}
                         </p>
                       </div>
 
@@ -4728,46 +5935,36 @@ function LiquidacionesView() {
   );
 }
 
-function Content({ active }: { active: ModuleKey }) {
+function Content({
+  active,
+  onNavigate,
+}: {
+  active: ModuleKey;
+  onNavigate: (key: ModuleKey) => void;
+}) {
   switch (active) {
     case "dashboard":
-      return <DashboardView />;
+      return <DashboardView onNavigate={onNavigate} />;
     case "ventas":
       return <SalesView />;
     case "productos":
       return <ProductsView />;
     case "categorias":
-      return (
-        <PlaceholderPage
-          eyebrow="Organización"
-          title="Categorías"
-          description="Aquí irá el módulo para gestionar categorías como cervezas, gaseosas, aguas, energéticas, snacks e hielo."
-        />
-      );
+      return <CategoriesView />;
     case "stock":
       return <StockView />;
+    case "movimientos":
+      return <MovimientosView />;
     case "ingresos":
     return <IngresosView />;
     case "ingresos":
       return <IngresosView />;
     case "proveedores":
-      return (
-        <PlaceholderPage
-          eyebrow="Relación comercial"
-          title="Proveedores"
-          description="Aquí irá el módulo para consultar deuda, tipo de acuerdo e historial por proveedor."
-        />
-      );
+      return <ProvidersView />;
     case "liquidaciones":
       return <LiquidacionesView />;
     case "reportes":
-      return (
-        <PlaceholderPage
-          eyebrow="Análisis"
-          title="Reportes"
-          description="Aquí irán los paneles para ventas, inventario, productos más vendidos y liquidaciones."
-        />
-      );
+      return <ReportesView />;
     case "usuarios":
       return (
         <PlaceholderPage
@@ -4813,7 +6010,7 @@ export default function App() {
           title={currentTitle}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
-        <Content active={active} />
+        <Content active={active} onNavigate={setActive} />
       </main>
     </div>
   </div>

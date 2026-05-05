@@ -3,15 +3,71 @@ import { prisma } from '../config/prisma'
 
 const router = express.Router()
 
+function calcularCostoLiquidacion(
+  cantidad: number,
+  costoProveedor: number,
+  manejaPack: boolean,
+  unidadesPorPack: number | null
+) {
+  if (manejaPack && unidadesPorPack && unidadesPorPack > 0) {
+    return Math.ceil(cantidad / unidadesPorPack) * unidadesPorPack * costoProveedor
+  }
+
+  return cantidad * costoProveedor
+}
+
+async function calcularDeudaPendiente(proveedorId: number) {
+  const ventasPendientes = await prisma.detalleVenta.findMany({
+    where: {
+      liquidado: false,
+      producto: {
+        proveedorId,
+      },
+    },
+    include: {
+      producto: true,
+    },
+  })
+
+  return ventasPendientes.reduce(
+    (acc, item) =>
+      acc +
+      calcularCostoLiquidacion(
+        item.cantidad,
+        item.producto.costoProveedor,
+        item.producto.manejaPack,
+        item.producto.unidadesPorPack
+      ),
+    0
+  )
+}
+
 router.get('/', async (_req, res) => {
   try {
     const proveedores = await prisma.proveedor.findMany({
       orderBy: {
         id: 'desc',
       },
+      include: {
+        _count: {
+          select: {
+            productos: true,
+            liquidaciones: true,
+          },
+        },
+      },
     })
 
-    res.json(proveedores)
+    const resultado = await Promise.all(
+      proveedores.map(async (proveedor) => ({
+        ...proveedor,
+        cantidadProductos: proveedor._count.productos,
+        cantidadLiquidaciones: proveedor._count.liquidaciones,
+        deudaPendiente: await calcularDeudaPendiente(proveedor.id),
+      }))
+    )
+
+    res.json(resultado)
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Error al obtener proveedores' })
@@ -30,6 +86,27 @@ router.get('/:id', async (req, res) => {
 
     const proveedor = await prisma.proveedor.findUnique({
       where: { id },
+      include: {
+        productos: {
+          include: {
+            categoria: true,
+          },
+          orderBy: {
+            nombre: 'asc',
+          },
+        },
+        liquidaciones: {
+          orderBy: {
+            id: 'desc',
+          },
+        },
+        _count: {
+          select: {
+            productos: true,
+            liquidaciones: true,
+          },
+        },
+      },
     })
 
     if (!proveedor) {
@@ -38,7 +115,12 @@ router.get('/:id', async (req, res) => {
       })
     }
 
-    res.json(proveedor)
+    res.json({
+      ...proveedor,
+      cantidadProductos: proveedor._count.productos,
+      cantidadLiquidaciones: proveedor._count.liquidaciones,
+      deudaPendiente: await calcularDeudaPendiente(proveedor.id),
+    })
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Error al obtener el proveedor' })

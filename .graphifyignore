@@ -1,0 +1,12 @@
+.git/
+node_modules/
+backend/node_modules/
+dist/
+backend/dist/
+.tmp-caveman/
+plugins/
+.agents/
+.codex/
+graphify-out/cache/
+package-lock.json
+backend/package-lock.json
