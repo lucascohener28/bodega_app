@@ -701,7 +701,7 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
       <section className="rounded-[28px] border border-red-200 bg-white p-8 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
         <p className="text-sm font-semibold uppercase tracking-[0.22em] text-red-600">Error</p>
         <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">No se pudo cargar el dashboard</h2>
-        <p className="mt-3 text-slate-500">Verifica que el backend este corriendo en http://localhost:3001.</p>
+        <p className="mt-3 text-slate-500">Verifica que el backend este disponible.</p>
       </section>
     );
   }
@@ -1012,7 +1012,7 @@ function SalesView() {
       setSaleError(null);
       setSaleSuccess(null);
 
-      const response = await fetch("http://localhost:3001/ventas", {
+      const response = await fetch(`${API_URL}/ventas`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2250,7 +2250,7 @@ function StockView() {
       setAdjustError(null);
 
       const response = await fetch(
-        `http://localhost:3001/productos/${adjustingProduct.id}/ajustar-stock`,
+        `${API_URL}/productos/${adjustingProduct.id}/ajustar-stock`,
         {
           method: "PATCH",
           headers: {
@@ -3369,7 +3369,7 @@ function ProductsView() {
 
       console.log("NEW PRODUCT", newProduct);
 
-      const response = await fetch("http://localhost:3001/productos", {
+      const response = await fetch(`${API_URL}/productos`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -3476,7 +3476,7 @@ function ProductsView() {
       setUpdateSuccess(null);
 
       const response = await fetch(
-        `http://localhost:3001/productos/${editProduct.id}`,
+        `${API_URL}/productos/${editProduct.id}`,
         {
           method: "PUT",
           headers: {
@@ -4353,7 +4353,7 @@ function IngresosView() {
       setIngresoError(null);
       setIngresoSuccess(null);
 
-      const response = await fetch("http://localhost:3001/ingresos", {
+      const response = await fetch(`${API_URL}/ingresos`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -5050,7 +5050,7 @@ function LiquidacionesView() {
       setError(null);
       setSuccess(null);
 
-      const crearResponse = await fetch("http://localhost:3001/liquidaciones", {
+      const crearResponse = await fetch(`${API_URL}/liquidaciones`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -5068,7 +5068,7 @@ function LiquidacionesView() {
       }
 
       const cerrarResponse = await fetch(
-        `http://localhost:3001/liquidaciones/${crearData.id}/cerrar`,
+        `${API_URL}/liquidaciones/${crearData.id}/cerrar`,
         {
           method: "PATCH",
         }

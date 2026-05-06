@@ -20,11 +20,11 @@ PORT=3001
 CORS_ORIGIN=http://localhost:5173
 ```
 
-Para produccion, cambiar `CORS_ORIGIN` por la URL del frontend en Vercel.
+Para produccion, cambiar `CORS_ORIGIN` por la URL del frontend en Render.
 Si necesitas permitir mas de un origen, separalos por coma:
 
 ```env
-CORS_ORIGIN=http://localhost:5173,https://tu-frontend.vercel.app
+CORS_ORIGIN=http://localhost:5173,https://tu-frontend.onrender.com
 ```
 
 ## Comandos utiles
