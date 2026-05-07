@@ -1,1 +1,28 @@
 @import "tailwindcss";
+
+@theme {
+  --color-brand-50: #f5f8ec;
+  --color-brand-100: #e7efd4;
+  --color-brand-200: #d1dfad;
+  --color-brand-300: #b4c87d;
+  --color-brand-400: #91aa4a;
+  --color-brand-500: #6f930f;
+  --color-brand-600: #588100;
+  --color-brand-700: #456600;
+  --color-brand-800: #385300;
+  --color-brand-900: #304600;
+  --color-brand-950: #172400;
+}
+
+:root {
+  color: #0f172a;
+  background: #f8faf5;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    radial-gradient(circle at top left, rgba(88, 129, 0, 0.12), transparent 32rem),
+    linear-gradient(135deg, #fbfcf8 0%, #f5f7ef 48%, #ffffff 100%);
+}
