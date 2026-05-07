@@ -1,5 +1,6 @@
-﻿import { generarPDFLiquidacion } from "./lib/pdf";
+import { generarPDFLiquidacion } from "./lib/pdf";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import logoPyl from "./assets/logo.png";
 import {
   Bell,
   Boxes,
@@ -433,13 +434,13 @@ function Sidebar({
       >
         <div className="mb-6 flex items-center justify-between lg:hidden">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
-              <Package className="h-5 w-5" />
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-500 bg-brand-700 p-1.5 shadow-lg shadow-brand-100">
+              <img src={logoPyl} alt="Complejo Recreativo P y L" className="h-full w-full object-contain" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-slate-900">La Bodega</h1>
+              <h1 className="text-base font-bold text-slate-900">Cantina P y L</h1>
               <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-500">
-                Administración
+                Complejo Recreativo
               </p>
             </div>
           </div>
@@ -453,13 +454,13 @@ function Sidebar({
         </div>
 
         <div className="mb-8 hidden items-center gap-3 px-2 lg:flex">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
-            <Package className="h-6 w-6" />
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-brand-500 bg-brand-700 p-2 shadow-lg shadow-brand-100">
+            <img src={logoPyl} alt="Complejo Recreativo P y L" className="h-full w-full object-contain" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-slate-900">La Bodega</h1>
+            <h1 className="text-lg font-bold text-slate-900">Cantina P y L</h1>
             <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-slate-500">
-              Administración
+              Complejo Recreativo
             </p>
           </div>
         </div>
@@ -478,20 +479,20 @@ function Sidebar({
                 }}
                 className={`group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200 ${
                   isActive
-                    ? "bg-blue-50 text-blue-700 ring-1 ring-blue-100"
+                    ? "bg-brand-50 text-brand-700 ring-1 ring-brand-100"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 <Icon
                   className={`h-5 w-5 ${
                     isActive
-                      ? "text-blue-600"
+                      ? "text-brand-600"
                       : "text-slate-400 group-hover:text-slate-700"
                   }`}
                 />
                 <span className="text-sm font-medium">{item.label}</span>
                 {isActive && (
-                  <span className="ml-auto h-8 w-1 rounded-full bg-blue-600" />
+                  <span className="ml-auto h-8 w-1 rounded-full bg-brand-600" />
                 )}
               </button>
             );
@@ -537,8 +538,8 @@ function Header({
             </button>
 
             <div className="hidden items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 sm:flex">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-sm font-bold text-blue-700">
-                LC
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-100 text-sm font-bold text-brand-700">
+                P&L
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900">
@@ -556,12 +557,12 @@ function Header({
             <input
               type="text"
               placeholder="Buscar productos, ventas o proveedores..."
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white"
             />
           </div>
 
           <div className="hidden items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500 xl:flex">
-            Gestión de Bodega
+            Cantina P y L
             <ChevronDown className="h-4 w-4" />
           </div>
         </div>
@@ -581,7 +582,7 @@ function PlaceholderPage({
 }) {
   return (
     <section className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-brand-600">
         {eyebrow}
       </p>
       <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
@@ -595,7 +596,7 @@ function PlaceholderPage({
             key={item}
             className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-5"
           >
-            <div className="mb-4 h-11 w-11 rounded-2xl bg-blue-100" />
+            <div className="mb-4 h-11 w-11 rounded-2xl bg-brand-100" />
             <div className="h-4 w-32 rounded-full bg-slate-200" />
             <div className="mt-3 h-3 w-48 rounded-full bg-slate-100" />
             <div className="mt-2 h-3 w-40 rounded-full bg-slate-100" />
@@ -610,16 +611,16 @@ function StatCard({
   title,
   value,
   helper,
-  tone = "blue",
+  tone = "brand",
 }: {
   title: string;
   value: string;
   helper: string;
-  tone?: "blue" | "green" | "red" | "amber";
+  tone?: "brand" | "green" | "red" | "amber";
 }) {
   const tones = {
-    blue: "bg-blue-50 text-blue-700 border-blue-100",
-    green: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    brand: "bg-brand-50 text-brand-700 border-brand-100",
+    green: "bg-brand-50 text-brand-700 border-brand-100",
     red: "bg-red-50 text-red-700 border-red-100",
     amber: "bg-amber-50 text-amber-700 border-amber-100",
   };
@@ -689,7 +690,7 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
   if (loading) {
     return (
       <section className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">Panel principal</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-brand-600">Panel principal</p>
         <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">Cargando dashboard...</h2>
         <p className="mt-3 text-slate-500">Estamos trayendo los datos reales del sistema.</p>
       </section>
@@ -730,7 +731,7 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
     <div className="space-y-6 sm:space-y-8">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
             Panel principal
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
@@ -743,9 +744,9 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <StatCard title="Ventas del dia" value={formatGs(resumen.totalVentasHoy)} helper="Facturacion de hoy" tone="blue" />
-        <StatCard title="Ganancia dia" value={formatGs(resumen.gananciaHoy)} helper="Bruta estimada" tone="green" />
-        <StatCard title="Ventas del mes" value={formatGs(resumen.totalVentasMes)} helper="Acumulado mensual" tone="blue" />
+        <StatCard title="Ventas del día" value={formatGs(resumen.totalVentasHoy)} helper="Facturación de hoy" tone="brand" />
+        <StatCard title="Ganancia día" value={formatGs(resumen.gananciaHoy)} helper="Bruta estimada" tone="green" />
+        <StatCard title="Ventas del mes" value={formatGs(resumen.totalVentasMes)} helper="Acumulado mensual" tone="brand" />
         <StatCard title="Ganancia mes" value={formatGs(resumen.gananciaMes)} helper="Bruta estimada" tone="green" />
       </section>
 
@@ -775,10 +776,10 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
               <div key={`${alerta.tipo}-${index}`} className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">{alerta.tipo}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-600">{alerta.tipo}</p>
                     <p className="mt-2 text-sm text-slate-700">{alerta.mensaje}</p>
                   </div>
-                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${alerta.prioridad === "ALTA" ? "bg-red-100 text-red-700" : alerta.prioridad === "MEDIA" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${alerta.prioridad === "ALTA" ? "bg-red-100 text-red-700" : alerta.prioridad === "MEDIA" ? "bg-amber-100 text-amber-700" : "bg-brand-100 text-brand-700"}`}>
                     {alerta.prioridad}
                   </span>
                 </div>
@@ -794,7 +795,7 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
           <div className="mt-4 space-y-3">
             {productosMasVendidos.slice(0, 5).map((item, index) => (
               <div key={item.productoId} className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-sm font-bold text-blue-600">{index + 1}</div>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-sm font-bold text-brand-600">{index + 1}</div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-slate-900">{item.nombre}</p>
                   <p className="text-sm text-slate-500">{formatGs(item.totalVendido)}</p>
@@ -816,7 +817,7 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
                     <p className="truncate font-semibold text-slate-900">{item.nombre}</p>
                     <p className="text-sm text-slate-500">Margen {item.margen.toFixed(1)}%</p>
                   </div>
-                  <p className="font-bold text-emerald-700">{formatGs(item.gananciaTotal)}</p>
+                  <p className="font-bold text-brand-700">{formatGs(item.gananciaTotal)}</p>
                 </div>
               </div>
             ))}
@@ -825,7 +826,7 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
         </div>
 
         <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
-          <h3 className="text-xl font-bold text-slate-950">Mejor rotacion</h3>
+          <h3 className="text-xl font-bold text-slate-950">Mejor rotación</h3>
           <div className="mt-4 space-y-3">
             {productosMejorRotacion.slice(0, 5).map((item) => (
               <div key={item.productoId} className="rounded-2xl bg-slate-50 px-4 py-3">
@@ -833,7 +834,7 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
                 <p className="mt-1 text-sm text-slate-500">{item.cantidadVendida} unidades · {formatGs(item.totalVendido)}</p>
               </div>
             ))}
-            {productosMejorRotacion.length === 0 && <p className="text-sm text-slate-500">Sin rotacion registrada.</p>}
+            {productosMejorRotacion.length === 0 && <p className="text-sm text-slate-500">Sin rotación registrada.</p>}
           </div>
         </div>
       </section>
@@ -872,7 +873,7 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
             ))}
             {ultimasLiquidaciones.slice(0, 2).map((item) => (
               <div key={`liq-${item.id}`} className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="font-semibold text-slate-900">Liquidacion #{item.id}</p>
+                <p className="font-semibold text-slate-900">Liquidación #{item.id}</p>
                 <p className="text-sm text-slate-500">{item.proveedor.nombre} · {formatGs(item.totalPagar)}</p>
               </div>
             ))}
@@ -881,10 +882,10 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
       </section>
 
       <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
-        <h3 className="text-xl font-bold text-slate-950">Accesos rapidos</h3>
+        <h3 className="text-xl font-bold text-slate-950">Accesos rápidos</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {quickActions.map((action) => (
-            <button key={action.target} onClick={() => onNavigate(action.target)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white hover:text-blue-700">
+            <button key={action.target} onClick={() => onNavigate(action.target)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white hover:text-brand-700">
               {action.label}
             </button>
           ))}
@@ -1061,14 +1062,14 @@ function SalesView() {
     <div className="space-y-6">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
             Operación diaria
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
             Nueva Venta
           </h2>
           <p className="mt-2 text-sm text-slate-500 sm:text-base">
-            Pantalla rápida de mostrador para registrar ventas de la bodega.
+            Pantalla rápida de mostrador para registrar ventas de la cantina.
           </p>
         </div>
       </section>
@@ -1076,14 +1077,14 @@ function SalesView() {
       <div className="grid gap-4 2xl:grid-cols-[1.35fr_0.82fr]">
         <section className="rounded-[24px] border border-slate-200 bg-white p-4 pb-24 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5 sm:pb-28 lg:p-6 2xl:pb-6">
           <div className="mb-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
               Operación diaria
             </p>
             <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl">
               Nueva Venta
             </h2>
             <p className="mt-2 text-sm text-slate-500 sm:text-base">
-              Pantalla rápida de mostrador para registrar ventas de la bodega.
+              Pantalla rápida de mostrador para registrar ventas de la cantina.
             </p>
           </div>
 
@@ -1093,13 +1094,13 @@ function SalesView() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar productos por nombre o código..."
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white"
             />
 
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white lg:w-auto"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white lg:w-auto"
             >
               {categories.map((category) => (
                 <option key={category} value={category}>
@@ -1164,7 +1165,7 @@ function SalesView() {
                       {product.codigo}
                     </p>
 
-                    <p className="mt-3 text-2xl font-bold tracking-tight text-blue-700">
+                    <p className="mt-3 text-2xl font-bold tracking-tight text-brand-700">
                       {formatGs(product.precioVenta)}
                     </p>
                   </button>
@@ -1177,7 +1178,7 @@ function SalesView() {
         <section className="hidden rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5 lg:p-6 2xl:block">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
                 Resumen
               </p>
               <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl">
@@ -1185,7 +1186,7 @@ function SalesView() {
               </h3>
             </div>
 
-            <span className="w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+            <span className="w-fit rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">
               Caja abierta
             </span>
           </div>
@@ -1260,7 +1261,7 @@ function SalesView() {
                     onClick={() => setSelectedPayment(paymentValue)}
                     className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                       selectedPayment === paymentValue
-                        ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                        ? "bg-brand-600 text-white shadow-lg shadow-brand-100"
                         : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                     }`}
                   >
@@ -1277,7 +1278,7 @@ function SalesView() {
             )}
 
             {saleSuccess && (
-              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              <div className="mt-4 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
                 {saleSuccess}
               </div>
             )}
@@ -1299,7 +1300,7 @@ function SalesView() {
             <button
               onClick={handleConfirmSale}
               disabled={submittingSale}
-              className="rounded-2xl bg-blue-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-brand-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submittingSale ? "Guardando venta..." : "Confirmar venta"}
             </button>
@@ -1359,7 +1360,7 @@ function SalesView() {
 
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">
                   Resumen
                 </p>
                 <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
@@ -1445,7 +1446,7 @@ function SalesView() {
                       onClick={() => setSelectedPayment(paymentValue)}
                       className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                         selectedPayment === paymentValue
-                          ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                          ? "bg-brand-600 text-white shadow-lg shadow-brand-100"
                           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                       }`}
                     >
@@ -1462,7 +1463,7 @@ function SalesView() {
               )}
 
               {saleSuccess && (
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                <div className="mt-4 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
                   {saleSuccess}
                 </div>
               )}
@@ -1484,7 +1485,7 @@ function SalesView() {
               <button
                 onClick={handleConfirmSale}
                 disabled={submittingSale}
-                className="rounded-2xl bg-blue-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-brand-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submittingSale ? "Guardando venta..." : "Confirmar venta"}
               </button>
@@ -1571,16 +1572,16 @@ function MovimientosView() {
   );
 
   const movementTone = (tipo: MovimientoInventario["tipoMovimiento"]) => {
-    if (tipo === "ENTRADA") return "bg-emerald-100 text-emerald-700";
+    if (tipo === "ENTRADA") return "bg-brand-100 text-brand-700";
     if (tipo === "SALIDA") return "bg-red-100 text-red-700";
-    return "bg-blue-100 text-blue-700";
+    return "bg-brand-100 text-brand-700";
   };
 
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
             Historial
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
@@ -1593,11 +1594,11 @@ function MovimientosView() {
       </section>
 
       <section className="grid gap-5 md:grid-cols-3">
-        <div className="rounded-[24px] border border-emerald-100 bg-emerald-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">
+        <div className="rounded-[24px] border border-brand-100 bg-brand-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
             Total de entradas
           </p>
-          <h3 className="mt-4 text-4xl font-bold tracking-tight text-emerald-700">
+          <h3 className="mt-4 text-4xl font-bold tracking-tight text-brand-700">
             {totals.entradas}
           </h3>
         </div>
@@ -1611,11 +1612,11 @@ function MovimientosView() {
           </h3>
         </div>
 
-        <div className="rounded-[24px] border border-blue-100 bg-blue-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">
+        <div className="rounded-[24px] border border-brand-100 bg-brand-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
             Total de ajustes
           </p>
-          <h3 className="mt-4 text-4xl font-bold tracking-tight text-blue-700">
+          <h3 className="mt-4 text-4xl font-bold tracking-tight text-brand-700">
             {totals.ajustes}
           </h3>
         </div>
@@ -1627,14 +1628,14 @@ function MovimientosView() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar producto o codigo..."
-            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+            placeholder="Buscar producto o código..."
+            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white"
           />
 
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white"
           >
             <option value="TODOS">Todos</option>
             <option value="ENTRADA">Entrada</option>
@@ -1646,14 +1647,14 @@ function MovimientosView() {
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white"
           />
 
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white"
           />
         </div>
 
@@ -1689,7 +1690,7 @@ function MovimientosView() {
                         {item.producto.nombre}
                       </p>
                       <p className="text-sm text-slate-500">
-                        Codigo: {item.producto.codigo}
+                        Código: {item.producto.codigo}
                       </p>
                     </div>
 
@@ -1740,7 +1741,7 @@ function MovimientosView() {
                   <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                     <th className="pb-2">Fecha</th>
                     <th className="pb-2">Producto</th>
-                    <th className="pb-2">Codigo</th>
+                    <th className="pb-2">Código</th>
                     <th className="pb-2">Categoria</th>
                     <th className="pb-2">Proveedor</th>
                     <th className="pb-2">Tipo de movimiento</th>
@@ -1848,7 +1849,7 @@ function ProductMiniTable({
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
                 <div
-                  className="h-full rounded-full bg-blue-600"
+                  className="h-full rounded-full bg-brand-600"
                   style={{
                     width: `${Math.min(
                       100,
@@ -1926,7 +1927,7 @@ function ReportesView() {
     <div className="space-y-6">
       <section className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
             Analisis inteligente
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
@@ -1942,13 +1943,13 @@ function ReportesView() {
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300"
+            className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300"
           />
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300"
+            className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300"
           />
         </div>
       </section>
@@ -1960,7 +1961,7 @@ function ReportesView() {
             onClick={() => setActiveTab(tab.key)}
             className={`min-w-[130px] rounded-2xl px-4 py-3 text-sm font-semibold transition ${
               activeTab === tab.key
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
+                ? "bg-brand-600 text-white shadow-lg shadow-brand-100"
                 : "text-slate-600 hover:bg-slate-50"
             }`}
           >
@@ -1984,10 +1985,10 @@ function ReportesView() {
       {!loading && !error && data && activeTab === "resumen" && (
         <>
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard title="Total vendido" value={formatGs(data.resumen.totalVendido)} helper="Rango seleccionado" tone="blue" />
+            <StatCard title="Total vendido" value={formatGs(data.resumen.totalVendido)} helper="Rango seleccionado" tone="brand" />
             <StatCard title="Ganancia total" value={formatGs(data.resumen.gananciaTotal)} helper="Venta menos costo proveedor" tone="green" />
             <StatCard title="Ventas" value={String(data.resumen.cantidadVentas)} helper="Cantidad de tickets" tone="amber" />
-            <StatCard title="Ticket promedio" value={formatGs(data.resumen.ticketPromedio)} helper="Promedio del rango" tone="blue" />
+            <StatCard title="Ticket promedio" value={formatGs(data.resumen.ticketPromedio)} helper="Promedio del rango" tone="brand" />
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
@@ -2034,10 +2035,10 @@ function ReportesView() {
                   <div key={`${alerta.productoId}-${alerta.tipo}-${index}`} className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">{alerta.tipo}</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-600">{alerta.tipo}</p>
                         <h4 className="mt-2 font-bold text-slate-950">{alerta.producto}</h4>
                       </div>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${alerta.prioridad === "ALTA" ? "bg-red-100 text-red-700" : alerta.prioridad === "MEDIA" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${alerta.prioridad === "ALTA" ? "bg-red-100 text-red-700" : alerta.prioridad === "MEDIA" ? "bg-amber-100 text-amber-700" : "bg-brand-100 text-brand-700"}`}>
                         {alerta.prioridad}
                       </span>
                     </div>
@@ -2105,7 +2106,7 @@ function ReportesView() {
                 return (
                   <div key={item.productoId} className="flex h-full min-w-[84px] flex-col justify-end gap-3">
                     <div className="flex flex-1 items-end rounded-2xl bg-white p-2">
-                      <div className="w-full rounded-xl bg-blue-600" style={{ height: `${Math.max((value / maxChartValue) * 100, 5)}%` }} />
+                      <div className="w-full rounded-xl bg-brand-600" style={{ height: `${Math.max((value / maxChartValue) * 100, 5)}%` }} />
                     </div>
                     <div className="h-10 overflow-hidden text-center text-[11px] font-semibold text-slate-500">{item.nombre}</div>
                   </div>
@@ -2196,7 +2197,7 @@ function StockView() {
 
     return {
       label: "Óptimo",
-      className: "bg-emerald-100 text-emerald-700",
+      className: "bg-brand-100 text-brand-700",
     };
   };
 
@@ -2335,7 +2336,7 @@ function StockView() {
     <div className="space-y-6">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
             Inventario
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
@@ -2354,7 +2355,7 @@ function StockView() {
           >
             Exportar
           </button>
-          <button className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700">
+          <button className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700">
             Ajustar stock
           </button>
         </div>
@@ -2381,14 +2382,14 @@ function StockView() {
           <p className="mt-2 text-sm text-amber-600">Programar reposición</p>
         </div>
 
-        <div className="rounded-[24px] border border-emerald-100 bg-emerald-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] md:col-span-2 xl:col-span-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">
+        <div className="rounded-[24px] border border-brand-100 bg-brand-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] md:col-span-2 xl:col-span-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
             Valor inventario
           </p>
-          <h3 className="mt-4 text-3xl font-bold tracking-tight text-emerald-700 sm:text-4xl">
+          <h3 className="mt-4 text-3xl font-bold tracking-tight text-brand-700 sm:text-4xl">
             {formatGs(inventoryValue)}
           </h3>
-          <p className="mt-2 text-sm text-emerald-600">
+          <p className="mt-2 text-sm text-brand-600">
             Estimación actual del stock
           </p>
         </div>
@@ -2402,13 +2403,13 @@ function StockView() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar producto..."
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white md:min-w-[240px]"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white md:min-w-[240px]"
             />
 
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white md:min-w-[220px]"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white md:min-w-[220px]"
             >
               {categoryOptions.map((category) => (
                 <option key={category} value={category}>
@@ -2420,7 +2421,7 @@ function StockView() {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white md:min-w-[220px]"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white md:min-w-[220px]"
             >
               <option value="TODOS">Todos los estados</option>
               <option value="CRÍTICO">Crítico</option>
@@ -2595,7 +2596,7 @@ function StockView() {
 
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-brand-600">
                   Inventario
                 </p>
                 <h3 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
@@ -2627,7 +2628,7 @@ function StockView() {
                   onChange={(e) =>
                     setAdjustType(e.target.value as "SUMAR" | "RESTAR" | "FIJAR")
                   }
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-blue-300 focus:bg-white"
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-brand-300 focus:bg-white"
                 >
                   <option value="SUMAR">Sumar stock</option>
                   <option value="RESTAR">Restar stock</option>
@@ -2651,7 +2652,7 @@ function StockView() {
                       ? "Ej.: 5"
                       : "Ej.: 3"
                   }
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white"
                 />
               </div>
 
@@ -2663,7 +2664,7 @@ function StockView() {
                   value={adjustReason}
                   onChange={(e) => setAdjustReason(e.target.value)}
                   placeholder="Ej.: diferencia en conteo, rotura, merma, corrección manual..."
-                  className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+                  className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white"
                 />
               </div>
             </div>
@@ -2702,7 +2703,7 @@ function StockView() {
               <button
                 onClick={handleConfirmAdjustStock}
                 disabled={adjustingStock}
-                className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {adjustingStock ? "Guardando ajuste..." : "Confirmar ajuste"}
               </button>
@@ -2843,14 +2844,14 @@ function ProvidersView() {
     <div className="space-y-6">
       <section className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">
             Relacion comercial
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl lg:text-4xl">
             Proveedores
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-            Gestion de proveedores, productos asociados, deuda y liquidaciones.
+            Gestión de proveedores, productos asociados, deuda y liquidaciones.
           </p>
         </div>
       </section>
@@ -2865,19 +2866,19 @@ function ProvidersView() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nombre"
-            className="h-12 min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+            className="h-12 min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
           />
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="Telefono"
-            className="h-12 min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+            className="h-12 min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:w-auto">
             <button
               onClick={handleSaveProvider}
               disabled={saving}
-              className="h-12 rounded-2xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+              className="h-12 rounded-2xl bg-brand-600 px-5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
             >
               {saving ? "Guardando..." : editingProvider ? "Actualizar" : "Crear"}
             </button>
@@ -2923,7 +2924,7 @@ function ProvidersView() {
                           {provider.telefono ?? "Sin telefono"}
                         </p>
                       </div>
-                      <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${provider.activo ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                      <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${provider.activo ? "bg-brand-100 text-brand-700" : "bg-slate-200 text-slate-600"}`}>
                         {provider.activo ? "Activo" : "Inactivo"}
                       </span>
                     </div>
@@ -2986,7 +2987,7 @@ function ProvidersView() {
                         {formatGs(provider.deudaPendiente)}
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${provider.activo ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${provider.activo ? "bg-brand-100 text-brand-700" : "bg-slate-200 text-slate-600"}`}>
                           {provider.activo ? "Activo" : "Inactivo"}
                         </span>
                       </td>
@@ -3016,7 +3017,7 @@ function ProvidersView() {
         <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">
                 Detalle proveedor
               </p>
               <h3 className="mt-2 text-2xl font-bold text-slate-950">
@@ -3158,14 +3159,14 @@ function CategoriesView() {
     <div className="space-y-6">
       <section className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">
             Organizacion
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl lg:text-4xl">
-            Categorias
+            Categorías
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-            Gestion de categorias y cantidad de productos asociados.
+            Gestión de categorías y cantidad de productos asociados.
           </p>
         </div>
       </section>
@@ -3179,7 +3180,7 @@ function CategoriesView() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nombre"
-            className="mt-5 h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+            className="mt-5 h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
           />
 
           {error && (
@@ -3192,7 +3193,7 @@ function CategoriesView() {
             <button
               onClick={handleSaveCategory}
               disabled={saving}
-              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+              className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
             >
               {saving ? "Guardando..." : editingCategory ? "Actualizar" : "Crear"}
             </button>
@@ -3525,14 +3526,14 @@ function ProductsView() {
     <div className="space-y-6">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
   <div className="min-w-0">
-    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
       Catálogo
     </p>
     <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
       Productos
     </h2>
     <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-      Administración del catálogo principal de la bodega con precios, stock,
+      Administración del catálogo principal de la cantina con precios, stock,
       proveedor y configuración de packs.
     </p>
   </div>
@@ -3543,7 +3544,7 @@ function ProductsView() {
       setCreateError(null);
       setCreateSuccess(null);
     }}
-    className="w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 sm:w-auto"
+    className="w-full rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 sm:w-auto"
   >
     {showCreateForm ? "Cerrar formulario" : "Nuevo producto"}
   </button>
@@ -3551,7 +3552,7 @@ function ProductsView() {
 
       {showCreateForm && (
     <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">          <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-brand-600">
               Alta de producto
             </p>
             <h3 className="mt-3 text-2xl font-bold text-slate-950">
@@ -3567,7 +3568,7 @@ function ProductsView() {
       setNewProduct((prev) => ({ ...prev, nombre: e.target.value }))
     }
     placeholder="Nombre"
-    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
   />
 
   <input
@@ -3577,7 +3578,7 @@ function ProductsView() {
       setNewProduct((prev) => ({ ...prev, codigo: e.target.value }))
     }
     placeholder="Código"
-    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
   />
 
   <input
@@ -3591,7 +3592,7 @@ function ProductsView() {
       }))
     }
     placeholder="Precio de venta"
-    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
   />
 
   <input
@@ -3605,7 +3606,7 @@ function ProductsView() {
       }))
     }
     placeholder="Costo proveedor"
-    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
   />
 
   <input
@@ -3619,7 +3620,7 @@ function ProductsView() {
       }))
     }
     placeholder="Stock mínimo"
-    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
   />
 
   <select
@@ -3630,7 +3631,7 @@ function ProductsView() {
         categoriaId: e.target.value,
       }))
     }
-    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
   >
     <option value="">Seleccionar categoría</option>
     {categories.map((category) => (
@@ -3648,7 +3649,7 @@ function ProductsView() {
         proveedorId: e.target.value,
       }))
     }
-    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
   >
     <option value="">Seleccionar proveedor</option>
     {providers.map((provider) => (
@@ -3666,7 +3667,7 @@ function ProductsView() {
         activo: e.target.value === "true",
       }))
     }
-    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
   >
     <option value="true">Activo</option>
     <option value="false">Inactivo</option>
@@ -3699,7 +3700,7 @@ function ProductsView() {
     }
     placeholder="Unidades por pack"
     disabled={!newProduct.manejaPack}
-    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-blue-300 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+    className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
   />
 </div>
 
@@ -3710,7 +3711,7 @@ function ProductsView() {
           )}
 
           {createSuccess && (
-            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="mt-4 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
               {createSuccess}
             </div>
           )}
@@ -3719,7 +3720,7 @@ function ProductsView() {
             <button
               onClick={handleCreateProduct}
               disabled={creatingProduct}
-              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {creatingProduct ? "Guardando..." : "Guardar producto"}
             </button>
@@ -3746,13 +3747,13 @@ function ProductsView() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar producto..."
-              className="h-12 min-w-[240px] rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+              className="h-12 min-w-[240px] rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white"
             />
 
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white"
             >
               {categoryOptions.map((category) => (
                 <option key={category} value={category}>
@@ -3764,7 +3765,7 @@ function ProductsView() {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white"
             >
               <option value="TODOS">Todos los estados</option>
               <option value="ACTIVO">Activos</option>
@@ -3814,7 +3815,7 @@ function ProductsView() {
             <span
               className={`rounded-full px-3 py-1 text-xs font-semibold ${
                 product.activo
-                  ? "bg-emerald-100 text-emerald-700"
+                  ? "bg-brand-100 text-brand-700"
                   : "bg-slate-200 text-slate-700"
               }`}
             >
@@ -3976,7 +3977,7 @@ function ProductsView() {
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${
                         product.activo
-                          ? "bg-emerald-100 text-emerald-700"
+                          ? "bg-brand-100 text-brand-700"
                           : "bg-slate-200 text-slate-700"
                       }`}
                     >
@@ -4194,7 +4195,7 @@ function ProductsView() {
             )}
 
             {updateSuccess && (
-              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              <div className="mt-4 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
                 {updateSuccess}
               </div>
             )}
@@ -4411,7 +4412,7 @@ function IngresosView() {
     <div className="space-y-6">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
             Logística
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
@@ -4426,7 +4427,7 @@ function IngresosView() {
         <button
           onClick={handleSaveIngreso}
           disabled={submittingIngreso}
-          className="w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          className="w-full rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {submittingIngreso ? "Guardando ingreso..." : "Guardar ingreso"}
         </button>
@@ -4435,7 +4436,7 @@ function IngresosView() {
       <section className="grid gap-4 xl:grid-cols-[0.9fr_1.35fr]">
         <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
           <div className="mb-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
               Formulario
             </p>
             <h3 className="mt-2 text-xl font-bold text-slate-950 sm:mt-3 sm:text-2xl">
@@ -4465,7 +4466,7 @@ function IngresosView() {
                 onChange={(e) =>
                   setProviderId(e.target.value ? Number(e.target.value) : "")
                 }
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-blue-300 focus:bg-white"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-brand-300 focus:bg-white"
               >
                 <option value="">Seleccionar proveedor</option>
                 {providers.map((provider) => (
@@ -4483,7 +4484,7 @@ function IngresosView() {
               <select
                 value={tipoIngreso}
                 onChange={(e) => setTipoIngreso(e.target.value)}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-blue-300 focus:bg-white"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-brand-300 focus:bg-white"
               >
                 <option value="CONSIGNACION">Consignación</option>
                 <option value="COMPRA_DIRECTA">Compra directa</option>
@@ -4498,7 +4499,7 @@ function IngresosView() {
                 value={observacion}
                 onChange={(e) => setObservacion(e.target.value)}
                 placeholder="Ej.: reposición para fin de semana, entrega parcial, etc."
-                className="min-h-[130px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
+                className="min-h-[130px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white"
               />
             </div>
 
@@ -4509,7 +4510,7 @@ function IngresosView() {
             )}
 
             {ingresoSuccess && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              <div className="rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
                 {ingresoSuccess}
               </div>
             )}
@@ -4518,7 +4519,7 @@ function IngresosView() {
               <button
                 onClick={handleSaveIngreso}
                 disabled={submittingIngreso}
-                className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submittingIngreso ? "Confirmando..." : "Confirmar ingreso"}
               </button>
@@ -4550,7 +4551,7 @@ function IngresosView() {
         <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
                 Detalle
               </p>
               <h3 className="mt-2 text-xl font-bold text-slate-950 sm:mt-3 sm:text-2xl">
@@ -4597,7 +4598,7 @@ function IngresosView() {
                           )
                         }
                         disabled={!providerId}
-                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-brand-300 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <option value="">Seleccionar producto</option>
                         {validProductsForProvider.map((product) => (
@@ -4624,7 +4625,7 @@ function IngresosView() {
                               Number(e.target.value) || 0
                             )
                           }
-                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300"
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-brand-300"
                         />
                       </div>
 
@@ -4643,7 +4644,7 @@ function IngresosView() {
                               Number(e.target.value) || 0
                             )
                           }
-                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300"
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-brand-300"
                         />
                       </div>
                     </div>
@@ -4701,7 +4702,7 @@ function IngresosView() {
                             )
                           }
                           disabled={!providerId}
-                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-brand-300 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <option value="">Seleccionar producto</option>
                           {validProductsForProvider.map((product) => (
@@ -4724,7 +4725,7 @@ function IngresosView() {
                               Number(e.target.value) || 0
                             )
                           }
-                          className="h-11 w-24 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300"
+                          className="h-11 w-24 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-brand-300"
                         />
                       </td>
 
@@ -4740,7 +4741,7 @@ function IngresosView() {
                               Number(e.target.value) || 0
                             )
                           }
-                          className="h-11 w-32 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-300"
+                          className="h-11 w-32 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-brand-300"
                         />
                       </td>
 
@@ -5222,7 +5223,7 @@ function LiquidacionesView() {
     <div className="space-y-6">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
             Finanzas & consignación
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
@@ -5242,7 +5243,7 @@ function LiquidacionesView() {
             type="month"
             value={periodo}
             onChange={(e) => setPeriodo(e.target.value)}
-            className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-300 sm:w-auto"
+            className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none focus:border-brand-300 sm:w-auto"
           />
         </div>
       </section>
@@ -5257,7 +5258,7 @@ function LiquidacionesView() {
             }}
             className={`rounded-[20px] px-5 py-4 text-sm font-semibold transition ${
               activeTab === "PENDIENTES"
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                ? "bg-brand-600 text-white shadow-lg shadow-brand-100"
                 : "bg-slate-50 text-slate-700 hover:bg-slate-100"
             }`}
           >
@@ -5288,7 +5289,7 @@ function LiquidacionesView() {
       )}
 
       {success && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
           {success}
         </div>
       )}
@@ -5311,7 +5312,7 @@ function LiquidacionesView() {
             <div className="grid gap-4 xl:grid-cols-[0.92fr_1.38fr]">
               <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
                 <div className="mb-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
                     Proveedores con deuda
                   </p>
                   <h3 className="mt-2 text-xl font-bold text-slate-950 sm:mt-3 sm:text-2xl">
@@ -5333,7 +5334,7 @@ function LiquidacionesView() {
                         }}
                         className={`w-full rounded-[22px] border p-4 text-left transition ${
                           isActive
-                            ? "border-blue-200 bg-blue-50"
+                            ? "border-brand-200 bg-brand-50"
                             : "border-slate-200 bg-slate-50/70 hover:bg-slate-100"
                         }`}
                       >
@@ -5366,7 +5367,7 @@ function LiquidacionesView() {
                   <>
                     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 sm:text-sm sm:tracking-[0.22em]">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
                           Detalle de liquidación
                         </p>
                         <h3 className="mt-2 text-xl font-bold text-slate-950 sm:mt-3 sm:text-2xl">
@@ -5386,7 +5387,7 @@ function LiquidacionesView() {
                         disabled={
                           closingId === selectedLiquidacion.proveedor.id
                         }
-                        className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        className="w-full rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                       >
                         {closingId === selectedLiquidacion.proveedor.id
                           ? "Cerrando..."
@@ -5561,13 +5562,13 @@ function LiquidacionesView() {
                   value={historialSearch}
                   onChange={(e) => setHistorialSearch(e.target.value)}
                   placeholder="Buscar por proveedor o número..."
-                  className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white xl:col-span-2"
+                  className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white xl:col-span-2"
                 />
 
                 <select
                   value={historialProveedorFiltro}
                   onChange={(e) => setHistorialProveedorFiltro(e.target.value)}
-                  className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+                  className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white"
                 >
                   {historialProviderOptions.map((proveedor) => (
                     <option key={proveedor} value={proveedor}>
@@ -5581,7 +5582,7 @@ function LiquidacionesView() {
                 <select
                   value={historialPeriodoFiltro}
                   onChange={(e) => setHistorialPeriodoFiltro(e.target.value)}
-                  className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-blue-300 focus:bg-white"
+                  className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white"
                 >
                   {historialPeriodoOptions.map((periodoOption) => (
                     <option key={periodoOption} value={periodoOption}>
@@ -5862,7 +5863,7 @@ function LiquidacionesView() {
                             {packInfo.packLabel}
                           </td>
 
-                          <td className="px-4 py-4 text-center font-medium text-blue-700">
+                          <td className="px-4 py-4 text-center font-medium text-brand-700">
                             {packInfo.packsALiquidar}
                           </td>
 
@@ -5914,7 +5915,7 @@ function LiquidacionesView() {
 
                   <button
                     onClick={() => generarPDFLiquidacion(selectedHistorial)}
-                    className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                    className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700"
                   >
                     Descargar PDF
                   </button>
@@ -5996,8 +5997,8 @@ export default function App() {
   );
 
   return (
-  <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#dbeafe,_#f8fafc_35%,_#f8fafc)] p-2 sm:p-4 md:p-6">
-    <div className="mx-auto flex min-h-[calc(100vh-1rem)] max-w-[1680px] gap-0 rounded-[24px] border border-white/50 bg-white/60 p-2 shadow-[0_25px_80px_rgba(15,23,42,0.10)] sm:min-h-[calc(100vh-2rem)] sm:gap-4 sm:rounded-[30px] sm:p-3 md:gap-6 md:rounded-[36px] md:p-4">
+  <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(88,129,0,0.14),_transparent_34rem),linear-gradient(135deg,_#fbfcf8,_#f5f7ef_48%,_#ffffff)] p-2 sm:p-4 md:p-6">
+    <div className="mx-auto flex min-h-[calc(100vh-1rem)] max-w-[1680px] gap-0 rounded-[24px] border border-white/70 bg-white/70 p-2 shadow-[0_25px_80px_rgba(47,70,0,0.10)] sm:min-h-[calc(100vh-2rem)] sm:gap-4 sm:rounded-[30px] sm:p-3 md:gap-6 md:rounded-[36px] md:p-4">
       <Sidebar
         active={active}
         onChange={setActive}
