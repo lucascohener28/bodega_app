@@ -1210,7 +1210,7 @@ function SalesView() {
       </section>
 
       <div className="grid gap-4 2xl:grid-cols-[1.35fr_0.82fr]">
-        <section className="rounded-[24px] border border-slate-200 bg-white p-4 pb-24 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5 sm:pb-28 lg:p-6 2xl:pb-6">
+        <section className="rounded-[24px] border border-slate-200 bg-white p-4 pb-44 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5 sm:pb-48 lg:p-6 lg:pb-48 2xl:pb-6">
           <div className="mb-5">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
               Operación diaria
@@ -1457,8 +1457,8 @@ function SalesView() {
 
       {!mobileCartOpen && (
         <div
-          className="fixed bottom-4 left-1/2 z-[80] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 2xl:hidden"
-          style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          className="fixed left-1/2 z-[80] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 2xl:hidden"
+          style={{ bottom: "calc(5.75rem + env(safe-area-inset-bottom))" }}
         >
           <button
             onClick={() => setMobileCartOpen(true)}
@@ -1490,7 +1490,7 @@ function SalesView() {
             onClick={() => setMobileCartOpen(false)}
           />
 
-          <div className="absolute bottom-0 left-0 right-0 max-h-[88vh] overflow-y-auto rounded-t-[28px] bg-white p-4 shadow-2xl">
+          <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 right-0 max-h-[calc(88vh-5rem)] overflow-y-auto rounded-t-[28px] bg-white p-4 shadow-2xl">
             <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-slate-200" />
 
             <div className="mb-5 flex items-start justify-between gap-3">
@@ -1616,7 +1616,7 @@ function SalesView() {
               </p>
             </div>
 
-            <div className="mt-6 grid gap-3 pb-4">
+            <div className="mt-6 grid gap-3 pb-6">
               <button
                 onClick={handleConfirmSale}
                 disabled={submittingSale}
