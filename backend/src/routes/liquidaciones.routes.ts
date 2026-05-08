@@ -1,7 +1,7 @@
-import express from 'express'
+import { Router } from 'express'
 import { prisma } from '../config/prisma'
 
-const router = express.Router()
+const router = Router()
 
 function obtenerRangoPeriodo(periodo: string) {
   const [anio, mes] = String(periodo).split('-').map(Number)
@@ -73,7 +73,7 @@ router.get('/resumen/calculo', async (req, res) => {
 
     if (isNaN(proveedorIdNumber)) {
       return res.status(400).json({
-        error: 'proveedorId inválido',
+        error: 'proveedorId invÃ¡lido',
       })
     }
 
@@ -127,7 +127,7 @@ router.get('/resumen/calculo', async (req, res) => {
         detalles: [],
         totalGeneral: 0,
         mensaje:
-          'No hay ventas pendientes de liquidar para ese proveedor en ese período',
+          'No hay ventas pendientes de liquidar para ese proveedor en ese perÃ­odo',
       })
     }
 
@@ -216,7 +216,7 @@ router.get('/resumen/calculo', async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      error: 'Error al calcular la liquidación',
+      error: 'Error al calcular la liquidaciÃ³n',
     })
   }
 })
@@ -227,7 +227,7 @@ router.get('/:id', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de liquidación inválido',
+        error: 'ID de liquidaciÃ³n invÃ¡lido',
       })
     }
 
@@ -245,7 +245,7 @@ router.get('/:id', async (req, res) => {
 
     if (!liquidacion) {
       return res.status(404).json({
-        error: 'Liquidación no encontrada',
+        error: 'LiquidaciÃ³n no encontrada',
       })
     }
 
@@ -253,7 +253,7 @@ router.get('/:id', async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      error: 'Error al obtener la liquidación',
+      error: 'Error al obtener la liquidaciÃ³n',
     })
   }
 })
@@ -272,7 +272,7 @@ router.post('/', async (req, res) => {
 
     if (isNaN(proveedorIdNumber)) {
       return res.status(400).json({
-        error: 'proveedorId inválido',
+        error: 'proveedorId invÃ¡lido',
       })
     }
 
@@ -322,7 +322,7 @@ router.post('/', async (req, res) => {
     if (ventasPendientes.length === 0) {
       return res.status(400).json({
         error:
-          'No hay ventas pendientes de liquidar para ese proveedor en ese período',
+          'No hay ventas pendientes de liquidar para ese proveedor en ese perÃ­odo',
       })
     }
 
@@ -449,7 +449,7 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      error: 'Error al guardar la liquidación',
+      error: 'Error al guardar la liquidaciÃ³n',
     })
   }
 })
@@ -460,7 +460,7 @@ router.patch('/:id/cerrar', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de liquidación inválido',
+        error: 'ID de liquidaciÃ³n invÃ¡lido',
       })
     }
 
@@ -478,13 +478,13 @@ router.patch('/:id/cerrar', async (req, res) => {
 
     if (!liquidacionExistente) {
       return res.status(404).json({
-        error: 'Liquidación no encontrada',
+        error: 'LiquidaciÃ³n no encontrada',
       })
     }
 
     if (liquidacionExistente.cerrada) {
       return res.status(400).json({
-        error: 'La liquidación ya está cerrada',
+        error: 'La liquidaciÃ³n ya estÃ¡ cerrada',
       })
     }
 
@@ -492,7 +492,7 @@ router.patch('/:id/cerrar', async (req, res) => {
 
     if (!rango) {
       return res.status(400).json({
-        error: 'El período de la liquidación es inválido',
+        error: 'El perÃ­odo de la liquidaciÃ³n es invÃ¡lido',
       })
     }
 
@@ -534,7 +534,7 @@ router.patch('/:id/cerrar', async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      error: 'Error al cerrar la liquidación',
+      error: 'Error al cerrar la liquidaciÃ³n',
     })
   }
 })

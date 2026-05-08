@@ -1,7 +1,7 @@
-import express from 'express'
+import { Router } from 'express'
 import { prisma } from '../config/prisma'
 
-const router = express.Router()
+const router = Router()
 
 router.get('/', async (_req, res) => {
   try {
@@ -33,7 +33,7 @@ router.get('/:id', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de venta inválido',
+        error: 'ID de venta invÃ¡lido',
       })
     }
 
@@ -76,7 +76,7 @@ router.post('/', async (req, res) => {
 
     if (!metodosValidos.includes(metodoPago)) {
       return res.status(400).json({
-        error: 'Método de pago inválido',
+        error: 'MÃ©todo de pago invÃ¡lido',
       })
     }
 
@@ -92,7 +92,7 @@ router.post('/', async (req, res) => {
 
     if (productos.length !== productosIds.length) {
       return res.status(400).json({
-        error: 'Uno o más productos no existen',
+        error: 'Uno o mÃ¡s productos no existen',
       })
     }
 
@@ -122,7 +122,7 @@ router.post('/', async (req, res) => {
         const precioUnitario = Number(item.precioUnitario)
 
         if (!productoId || cantidad <= 0 || precioUnitario < 0) {
-          throw new Error('Detalle de venta inválido')
+          throw new Error('Detalle de venta invÃ¡lido')
         }
 
         const producto = await tx.producto.findUnique({
@@ -194,7 +194,7 @@ router.post('/', async (req, res) => {
 
     if (
       error.message.includes('Stock insuficiente') ||
-      error.message === 'Detalle de venta inválido'
+      error.message === 'Detalle de venta invÃ¡lido'
     ) {
       return res.status(400).json({
         error: error.message,

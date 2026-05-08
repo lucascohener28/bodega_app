@@ -1,7 +1,7 @@
-import express from 'express'
+import { Router } from 'express'
 import { prisma } from '../config/prisma'
 
-const router = express.Router()
+const router = Router()
 
 router.get('/', async (_req, res) => {
   try {
@@ -34,7 +34,7 @@ router.get('/:id', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de ingreso inválido',
+        error: 'ID de ingreso invÃ¡lido',
       })
     }
 
@@ -91,7 +91,7 @@ router.post('/', async (req, res) => {
 
     if (!tiposValidos.includes(tipoIngreso)) {
       return res.status(400).json({
-        error: 'Tipo de ingreso inválido',
+        error: 'Tipo de ingreso invÃ¡lido',
       })
     }
 
@@ -107,7 +107,7 @@ router.post('/', async (req, res) => {
 
     if (productos.length !== productosIds.length) {
       return res.status(400).json({
-        error: 'Uno o más productos no existen',
+        error: 'Uno o mÃ¡s productos no existen',
       })
     }
 
@@ -126,7 +126,7 @@ router.post('/', async (req, res) => {
         const costoUnitario = Number(item.costoUnitario)
 
         if (!productoId || cantidad <= 0 || costoUnitario < 0) {
-          throw new Error('Detalle de ingreso inválido')
+          throw new Error('Detalle de ingreso invÃ¡lido')
         }
 
         const subtotal = cantidad * costoUnitario
@@ -171,7 +171,7 @@ router.post('/', async (req, res) => {
             stockNuevo: productoActual.stockActual + cantidad,
             referenciaTipo: 'INGRESO',
             referenciaId: nuevoIngreso.id,
-            observacion: `Ingreso de mercadería #${nuevoIngreso.id}`,
+            observacion: `Ingreso de mercaderÃ­a #${nuevoIngreso.id}`,
           },
         })
       }
@@ -197,9 +197,9 @@ router.post('/', async (req, res) => {
   } catch (error: any) {
     console.error(error)
 
-    if (error.message === 'Detalle de ingreso inválido') {
+    if (error.message === 'Detalle de ingreso invÃ¡lido') {
       return res.status(400).json({
-        error: 'Uno de los detalles del ingreso es inválido',
+        error: 'Uno de los detalles del ingreso es invÃ¡lido',
       })
     }
 

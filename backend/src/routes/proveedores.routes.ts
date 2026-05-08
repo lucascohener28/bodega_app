@@ -1,7 +1,7 @@
-import express from 'express'
+import { Router } from 'express'
 import { prisma } from '../config/prisma'
 
-const router = express.Router()
+const router = Router()
 
 function calcularCostoLiquidacion(
   cantidad: number,
@@ -80,7 +80,7 @@ router.get('/:id', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de proveedor inválido',
+        error: 'ID de proveedor invÃ¡lido',
       })
     }
 
@@ -158,7 +158,7 @@ router.put('/:id', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de proveedor inválido',
+        error: 'ID de proveedor invÃ¡lido',
       })
     }
 
@@ -198,7 +198,7 @@ router.patch('/:id/estado', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de proveedor inválido',
+        error: 'ID de proveedor invÃ¡lido',
       })
     }
 

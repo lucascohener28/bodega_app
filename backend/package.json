@@ -13,6 +13,7 @@
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "build": "tsc",
     "start": "node dist/server.js",
+    "seed:admin": "npm run build && node dist/scripts/seed-admin.js",
     "db:export-data": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -SkipImport",
     "db:import-supabase": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -SkipExport",
     "db:migrate-data:supabase": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -TruncateBeforeImport",
@@ -25,14 +26,17 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.6.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.20.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.0",
     "prisma": "^7.6.0",
     "ts-node-dev": "^2.0.0",

@@ -1,7 +1,7 @@
-import express from 'express'
+import { Router } from 'express'
 import { prisma } from '../config/prisma'
 
-const router = express.Router()
+const router = Router()
 
 function getDateRange(start?: string, end?: string) {
   const where: {

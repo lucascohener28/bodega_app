@@ -1,7 +1,10 @@
-import express from 'express'
+import { Router } from 'express'
 import { prisma } from '../config/prisma'
+import { roleMiddleware } from '../middlewares/role.middleware'
+import { Rol } from '@prisma/client'
 
-const router = express.Router()
+const router = Router()
+const adminOnly = roleMiddleware([Rol.ADMIN])
 
 router.get('/', async (_req, res) => {
   try {
@@ -28,7 +31,7 @@ router.get('/:id', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de producto inválido',
+        error: 'ID de producto invÃ¡lido',
       })
     }
 
@@ -53,7 +56,7 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', adminOnly, async (req, res) => {
   try {
     const {
       nombre,
@@ -88,7 +91,7 @@ router.post('/', async (req, res) => {
 
     if (!nuevaCategoria) {
       return res.status(400).json({
-        error: 'La categoría no existe',
+        error: 'La categorÃ­a no existe',
       })
     }
 
@@ -131,7 +134,7 @@ router.post('/', async (req, res) => {
 
     if (error.code === 'P2002') {
       return res.status(400).json({
-        error: 'Ya existe un producto con ese código',
+        error: 'Ya existe un producto con ese cÃ³digo',
       })
     }
 
@@ -141,13 +144,13 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminOnly, async (req, res) => {
   try {
     const id = Number(req.params.id)
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de producto inválido',
+        error: 'ID de producto invÃ¡lido',
       })
     }
 
@@ -189,7 +192,7 @@ router.put('/:id', async (req, res) => {
         categoriaId: categoriaId !== undefined ? Number(categoriaId) : undefined,
         proveedorId: proveedorId !== undefined ? Number(proveedorId) : undefined,
 
-        // ✅ ESTA ES LA CLAVE
+        // âœ… ESTA ES LA CLAVE
         manejaPack: manejaPack !== undefined ? Boolean(manejaPack) : undefined,
         unidadesPorPack:
           manejaPack
@@ -208,7 +211,7 @@ router.put('/:id', async (req, res) => {
 
     if (error.code === 'P2002') {
       return res.status(400).json({
-        error: 'Ya existe un producto con ese código',
+        error: 'Ya existe un producto con ese cÃ³digo',
       })
     }
 
@@ -218,13 +221,13 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-router.patch('/:id/estado', async (req, res) => {
+router.patch('/:id/estado', adminOnly, async (req, res) => {
   try {
     const id = Number(req.params.id)
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de producto inválido',
+        error: 'ID de producto invÃ¡lido',
       })
     }
 
@@ -266,13 +269,13 @@ router.patch('/:id/estado', async (req, res) => {
   }
 })
 
-router.patch('/:id/ajustar-stock', async (req, res) => {
+router.patch('/:id/ajustar-stock', adminOnly, async (req, res) => {
   try {
     const id = Number(req.params.id)
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de producto inválido',
+        error: 'ID de producto invÃ¡lido',
       })
     }
 
@@ -288,7 +291,7 @@ router.patch('/:id/ajustar-stock', async (req, res) => {
 
     if (isNaN(cantidadNumero) || cantidadNumero < 0) {
       return res.status(400).json({
-        error: 'La cantidad debe ser un número válido mayor o igual a 0',
+        error: 'La cantidad debe ser un nÃºmero vÃ¡lido mayor o igual a 0',
       })
     }
 
@@ -316,7 +319,7 @@ router.patch('/:id/ajustar-stock', async (req, res) => {
       nuevoStock = cantidadNumero
     } else {
       return res.status(400).json({
-        error: 'Tipo de ajuste inválido',
+        error: 'Tipo de ajuste invÃ¡lido',
       })
     }
 

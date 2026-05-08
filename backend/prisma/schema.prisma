@@ -179,3 +179,75 @@ model DetalleLiquidacion {
   liquidacion       Liquidacion  @relation(fields: [liquidacionId], references: [id])
   producto          Producto     @relation(fields: [productoId], references: [id])
 }
+
+model Usuario {
+  id        String   @id @default(cuid())
+  nombre    String
+  username  String   @unique
+  email     String?  @unique
+  password  String
+  rol       Rol      @default(CAJERO)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cajasAbiertas CajaDiaria[]     @relation("CajaAbiertaPor")
+  cajasCerradas CajaDiaria[]     @relation("CajaCerradaPor")
+  movimientosCaja MovimientoCaja[]
+}
+
+enum Rol {
+  ADMIN
+  CAJERO
+}
+
+model CajaDiaria {
+  id                 String       @id @default(cuid())
+  fecha              DateTime     @default(now())
+  estado             EstadoCaja   @default(ABIERTA)
+  montoInicial       Int
+  montoFinal         Int?
+  totalEfectivo      Int          @default(0)
+  totalQR            Int          @default(0)
+  totalTransferencia Int          @default(0)
+  totalMixto         Int          @default(0)
+  totalEsperado      Int?
+  diferencia         Int?
+  observacionApertura String?
+  observacionCierre String?
+  abiertaPorId       String
+  cerradaPorId       String?
+  abiertaEn          DateTime     @default(now())
+  cerradaEn          DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  abiertaPor         Usuario      @relation("CajaAbiertaPor", fields: [abiertaPorId], references: [id])
+  cerradaPor         Usuario?     @relation("CajaCerradaPor", fields: [cerradaPorId], references: [id])
+  movimientos        MovimientoCaja[]
+}
+
+model MovimientoCaja {
+  id          String   @id @default(cuid())
+  cajaId      String
+  tipo        TipoMovimientoCaja
+  monto       Int
+  concepto    String
+  observacion String?
+  creadoPorId String
+  createdAt   DateTime @default(now())
+
+  caja        CajaDiaria @relation(fields: [cajaId], references: [id])
+  creadoPor   Usuario   @relation(fields: [creadoPorId], references: [id])
+}
+
+enum EstadoCaja {
+  ABIERTA
+  CERRADA
+}
+
+enum TipoMovimientoCaja {
+  INGRESO
+  EGRESO
+  RETIRO
+}

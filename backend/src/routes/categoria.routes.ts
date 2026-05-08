@@ -1,7 +1,10 @@
-import express from 'express'
+import { Router } from 'express'
 import { prisma } from '../config/prisma'
+import { roleMiddleware } from '../middlewares/role.middleware'
+import { Rol } from '@prisma/client'
 
-const router = express.Router()
+const router = Router()
+const adminOnly = roleMiddleware([Rol.ADMIN])
 
 router.get('/', async (_req, res) => {
   try {
@@ -26,7 +29,7 @@ router.get('/', async (_req, res) => {
     )
   } catch (error) {
     console.error(error)
-    res.status(500).json({ error: 'Error al obtener categorías' })
+    res.status(500).json({ error: 'Error al obtener categorÃ­as' })
   }
 })
 
@@ -36,7 +39,7 @@ router.get('/:id', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de categoría inválido',
+        error: 'ID de categorÃ­a invÃ¡lido',
       })
     }
 
@@ -61,7 +64,7 @@ router.get('/:id', async (req, res) => {
 
     if (!categoria) {
       return res.status(404).json({
-        error: 'Categoría no encontrada',
+        error: 'CategorÃ­a no encontrada',
       })
     }
 
@@ -71,11 +74,11 @@ router.get('/:id', async (req, res) => {
     })
   } catch (error) {
     console.error(error)
-    res.status(500).json({ error: 'Error al obtener la categoría' })
+    res.status(500).json({ error: 'Error al obtener la categorÃ­a' })
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', adminOnly, async (req, res) => {
   try {
     const { nombre } = req.body
 
@@ -94,17 +97,17 @@ router.post('/', async (req, res) => {
     res.status(201).json(categoria)
   } catch (error) {
     console.error(error)
-    res.status(500).json({ error: 'Error al crear categoría' })
+    res.status(500).json({ error: 'Error al crear categorÃ­a' })
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminOnly, async (req, res) => {
   try {
     const id = Number(req.params.id)
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de categoría inválido',
+        error: 'ID de categorÃ­a invÃ¡lido',
       })
     }
 
@@ -122,7 +125,7 @@ router.put('/:id', async (req, res) => {
 
     if (!categoriaExistente) {
       return res.status(404).json({
-        error: 'Categoría no encontrada',
+        error: 'CategorÃ­a no encontrada',
       })
     }
 
@@ -137,7 +140,7 @@ router.put('/:id', async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      error: 'Error al actualizar categoría',
+      error: 'Error al actualizar categorÃ­a',
     })
   }
 })

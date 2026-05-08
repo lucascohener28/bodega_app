@@ -19,7 +19,9 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { API_URL, fetchJson } from "./lib/api";
+import { apiFetch, clearAuthToken, fetchJson, setAuthToken } from "./lib/api";
+import { CajaDiariaView } from "./modules/caja/CajaDiariaView";
+import { CajeroDashboard } from "./modules/cajero/CajeroDashboard";
 
 type ModuleKey =
   | "dashboard"
@@ -28,12 +30,29 @@ type ModuleKey =
   | "categorias"
   | "stock"
   | "movimientos"
+  | "caja"
   | "ingresos"
   | "proveedores"
   | "liquidaciones"
   | "reportes"
   | "usuarios"
   | "configuracion";
+
+type UserRole = "ADMIN" | "CAJERO";
+
+type AuthUser = {
+  id: string;
+  nombre: string;
+  username: string;
+  email: string | null;
+  rol: UserRole;
+  activo: boolean;
+};
+
+type LoginResponse = {
+  token: string;
+  usuario: AuthUser;
+};
 
 type NavItem = {
   key: ModuleKey;
@@ -397,6 +416,7 @@ const navigation: NavItem[] = [
   { key: "categorias", label: "Categorías", icon: Boxes },
   { key: "stock", label: "Stock", icon: ClipboardList },
   { key: "movimientos", label: "Movimientos", icon: FileBarChart2 },
+  { key: "caja", label: "Caja", icon: Wallet },
   { key: "ingresos", label: "Ingresos de mercadería", icon: Truck },
   { key: "proveedores", label: "Proveedores", icon: Wallet },
   { key: "liquidaciones", label: "Liquidaciones", icon: CreditCard },
@@ -410,12 +430,19 @@ function Sidebar({
   onChange,
   isOpen,
   onClose,
+  user,
 }: {
   active: ModuleKey;
   onChange: (key: ModuleKey) => void;
   isOpen: boolean;
   onClose: () => void;
+  user: AuthUser;
 }) {
+  const visibleNavigation = navigation.filter((item) => {
+    if (user.rol === "ADMIN") return true;
+    return ["dashboard", "ventas", "caja", "stock", "movimientos"].includes(item.key);
+  });
+
   return (
     <>
       <div
@@ -466,7 +493,7 @@ function Sidebar({
         </div>
 
         <nav className="space-y-1.5 overflow-y-auto pr-1">
-          {navigation.map((item) => {
+            {visibleNavigation.map((item) => {
             const Icon = item.icon;
             const isActive = active === item.key;
 
@@ -506,9 +533,13 @@ function Sidebar({
 function Header({
   title,
   onOpenSidebar,
+  user,
+  onLogout,
 }: {
   title: string;
   onOpenSidebar: () => void;
+  user: AuthUser;
+  onLogout: () => void;
 }) {
   return (
     <header className="mb-6 rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:px-6">
@@ -543,11 +574,18 @@ function Header({
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  Lucas Cohener
-                </p>
-                <p className="text-xs text-slate-500">Administrador</p>
+                {user.nombre}
+              </p>
+                <p className="text-xs text-slate-500">{user.rol === "ADMIN" ? "Administrador" : "Cajero"}</p>
               </div>
             </div>
+
+            <button
+              onClick={onLogout}
+              className="hidden rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:block"
+            >
+              Salir
+            </button>
           </div>
         </div>
 
@@ -568,6 +606,98 @@ function Header({
         </div>
       </div>
     </header>
+  );
+}
+
+function LoginView({ onLogin }: { onLogin: (user: AuthUser) => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await apiFetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo iniciar sesion");
+      }
+
+      const loginData = data as LoginResponse;
+      setAuthToken(loginData.token);
+      onLogin(loginData.usuario);
+    } catch (err: any) {
+      const message =
+        err instanceof TypeError
+          ? "No se pudo conectar con el backend. Verifica que esté encendido."
+          : err.message || "Error al iniciar sesión";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(88,129,0,0.16),_transparent_34rem),linear-gradient(135deg,_#fbfcf8,_#f5f7ef_48%,_#ffffff)] p-4">
+      <section className="w-full max-w-md rounded-[30px] border border-brand-100 bg-white p-6 shadow-[0_25px_80px_rgba(47,70,0,0.12)]">
+        <div className="mb-8 flex items-center gap-4">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-brand-500 bg-brand-700 p-2 shadow-lg shadow-brand-100">
+            <img src={logoPyl} alt="Complejo Recreativo P y L" className="h-full w-full object-contain" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-950">Cantina P y L</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+              Acceso al sistema
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-slate-700">Usuario</label>
+            <input
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
+              autoComplete="username"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-slate-700">Password</label>
+            <input
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              type="password"
+              className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
+              autoComplete="current-password"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <button
+            disabled={loading}
+            className="w-full rounded-2xl bg-brand-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Ingresando..." : "Ingresar"}
+          </button>
+        </form>
+      </section>
+    </div>
   );
 }
 
@@ -1013,7 +1143,7 @@ function SalesView() {
       setSaleError(null);
       setSaleSuccess(null);
 
-      const response = await fetch(`${API_URL}/ventas`, {
+      const response = await apiFetch(`/ventas`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2250,8 +2380,8 @@ function StockView() {
       setAdjustingStock(true);
       setAdjustError(null);
 
-      const response = await fetch(
-        `${API_URL}/productos/${adjustingProduct.id}/ajustar-stock`,
+      const response = await apiFetch(
+        `/productos/${adjustingProduct.id}/ajustar-stock`,
         {
           method: "PATCH",
           headers: {
@@ -2777,8 +2907,8 @@ function ProvidersView() {
       setSaving(true);
       setError(null);
 
-      const response = await fetch(
-        `${API_URL}/proveedores${editingProvider ? `/${editingProvider.id}` : ""}`,
+      const response = await apiFetch(
+        `/proveedores${editingProvider ? `/${editingProvider.id}` : ""}`,
         {
           method: editingProvider ? "PUT" : "POST",
           headers: {
@@ -2813,7 +2943,7 @@ function ProvidersView() {
 
   async function toggleProvider(provider: ProveedorAdmin) {
     try {
-      const response = await fetch(`${API_URL}/proveedores/${provider.id}/estado`, {
+      const response = await apiFetch(`/proveedores/${provider.id}/estado`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -3126,8 +3256,8 @@ function CategoriesView() {
       setSaving(true);
       setError(null);
 
-      const response = await fetch(
-        `${API_URL}/categorias${editingCategory ? `/${editingCategory.id}` : ""}`,
+      const response = await apiFetch(
+        `/categorias${editingCategory ? `/${editingCategory.id}` : ""}`,
         {
           method: editingCategory ? "PUT" : "POST",
           headers: {
@@ -3370,7 +3500,7 @@ function ProductsView() {
 
       console.log("NEW PRODUCT", newProduct);
 
-      const response = await fetch(`${API_URL}/productos`, {
+      const response = await apiFetch(`/productos`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -3476,8 +3606,8 @@ function ProductsView() {
       setUpdateError(null);
       setUpdateSuccess(null);
 
-      const response = await fetch(
-        `${API_URL}/productos/${editProduct.id}`,
+      const response = await apiFetch(
+        `/productos/${editProduct.id}`,
         {
           method: "PUT",
           headers: {
@@ -4354,7 +4484,7 @@ function IngresosView() {
       setIngresoError(null);
       setIngresoSuccess(null);
 
-      const response = await fetch(`${API_URL}/ingresos`, {
+      const response = await apiFetch(`/ingresos`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -5051,7 +5181,7 @@ function LiquidacionesView() {
       setError(null);
       setSuccess(null);
 
-      const crearResponse = await fetch(`${API_URL}/liquidaciones`, {
+      const crearResponse = await apiFetch(`/liquidaciones`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -5068,8 +5198,8 @@ function LiquidacionesView() {
         throw new Error(crearData.error || "No se pudo generar la liquidación");
       }
 
-      const cerrarResponse = await fetch(
-        `${API_URL}/liquidaciones/${crearData.id}/cerrar`,
+      const cerrarResponse = await apiFetch(
+        `/liquidaciones/${crearData.id}/cerrar`,
         {
           method: "PATCH",
         }
@@ -5936,16 +6066,280 @@ function LiquidacionesView() {
   );
 }
 
+type UsuarioAdmin = AuthUser & {
+  createdAt: string;
+  updatedAt: string;
+};
+
+function UsuariosView() {
+  const [usuarios, setUsuarios] = useState<UsuarioAdmin[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<UsuarioAdmin | null>(null);
+  const [resetUser, setResetUser] = useState<UsuarioAdmin | null>(null);
+  const [form, setForm] = useState({
+    nombre: "",
+    username: "",
+    email: "",
+    password: "",
+    rol: "CAJERO" as UserRole,
+    activo: true,
+  });
+  const [newPassword, setNewPassword] = useState("");
+
+  const loadUsuarios = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchJson<UsuarioAdmin[]>("/usuarios");
+      setUsuarios(data);
+    } catch (err) {
+      setError("No se pudieron cargar los usuarios");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUsuarios();
+  }, [loadUsuarios]);
+
+  function resetForm() {
+    setEditingUser(null);
+    setForm({
+      nombre: "",
+      username: "",
+      email: "",
+      password: "",
+      rol: "CAJERO",
+      activo: true,
+    });
+  }
+
+  function startEdit(usuario: UsuarioAdmin) {
+    setEditingUser(usuario);
+    setForm({
+      nombre: usuario.nombre,
+      username: usuario.username,
+      email: usuario.email || "",
+      password: "",
+      rol: usuario.rol,
+      activo: usuario.activo,
+    });
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const payload = editingUser
+        ? {
+            nombre: form.nombre,
+            email: form.email || null,
+            rol: form.rol,
+            activo: form.activo,
+          }
+        : {
+            nombre: form.nombre,
+            username: form.username,
+            email: form.email || null,
+            password: form.password,
+            rol: form.rol,
+          };
+
+      const response = await apiFetch(
+        editingUser ? `/usuarios/${editingUser.id}` : "/usuarios",
+        {
+          method: editingUser ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo guardar el usuario");
+      }
+
+      setSuccess(editingUser ? "Usuario actualizado" : "Usuario creado");
+      resetForm();
+      await loadUsuarios();
+    } catch (err: any) {
+      setError(err.message || "Error al guardar usuario");
+    }
+  }
+
+  async function desactivarUsuario(usuario: UsuarioAdmin) {
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await apiFetch(`/usuarios/${usuario.id}/desactivar`, {
+        method: "PATCH",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo desactivar el usuario");
+      }
+
+      setSuccess("Usuario desactivado");
+      await loadUsuarios();
+    } catch (err: any) {
+      setError(err.message || "Error al desactivar usuario");
+    }
+  }
+
+  async function resetPassword() {
+    if (!resetUser) return;
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await apiFetch(`/usuarios/${resetUser.id}/reset-password`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo resetear la password");
+      }
+
+      setSuccess("Password actualizada");
+      setResetUser(null);
+      setNewPassword("");
+    } catch (err: any) {
+      setError(err.message || "Error al resetear password");
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <section>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.22em]">
+          Seguridad
+        </p>
+        <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:mt-3 sm:text-3xl lg:text-4xl">
+          Usuarios
+        </h2>
+        <p className="mt-2 text-sm text-slate-500 sm:text-base">
+          Gestiona accesos, roles y restablecimiento de contraseñas.
+        </p>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[0.8fr_1.4fr]">
+        <form onSubmit={handleSubmit} className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+          <h3 className="text-xl font-bold text-slate-950">
+            {editingUser ? "Editar usuario" : "Nuevo usuario"}
+          </h3>
+          <div className="mt-5 space-y-3">
+            <input className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white" placeholder="Nombre" value={form.nombre} onChange={(event) => setForm({ ...form, nombre: event.target.value })} />
+            {!editingUser && (
+              <>
+                <input className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white" placeholder="Username" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} />
+                <input className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white" placeholder="Password inicial" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
+              </>
+            )}
+            <input className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white" placeholder="Email opcional" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+            <select className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white" value={form.rol} onChange={(event) => setForm({ ...form, rol: event.target.value as UserRole })}>
+              <option value="CAJERO">Cajero</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+            {editingUser && (
+              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                <input type="checkbox" checked={form.activo} onChange={(event) => setForm({ ...form, activo: event.target.checked })} />
+                Usuario activo
+              </label>
+            )}
+          </div>
+
+          {error && <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+          {success && <div className="mt-4 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">{success}</div>}
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <button className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700">
+              {editingUser ? "Actualizar" : "Crear usuario"}
+            </button>
+            {editingUser && (
+              <button type="button" onClick={resetForm} className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700">
+                Cancelar
+              </button>
+            )}
+          </div>
+        </form>
+
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-xl font-bold text-slate-950">Listado</h3>
+            <span className="text-sm text-slate-500">{usuarios.length} usuarios</span>
+          </div>
+
+          {loading ? (
+            <p className="mt-5 text-sm text-slate-500">Cargando usuarios...</p>
+          ) : (
+            <div className="mt-5 space-y-3">
+              {usuarios.map((usuario) => (
+                <div key={usuario.id} className="grid gap-3 rounded-2xl bg-slate-50 p-4 lg:grid-cols-[1.2fr_0.7fr_0.5fr_0.5fr_1fr] lg:items-center">
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-950">{usuario.nombre}</p>
+                    <p className="text-sm text-slate-500">@{usuario.username}</p>
+                  </div>
+                  <p className="text-sm text-slate-600">{usuario.email || "Sin email"}</p>
+                  <span className="w-fit rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">{usuario.rol}</span>
+                  <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${usuario.activo ? "bg-brand-100 text-brand-700" : "bg-slate-200 text-slate-600"}`}>
+                    {usuario.activo ? "Activo" : "Inactivo"}
+                  </span>
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <button onClick={() => startEdit(usuario)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Editar</button>
+                    <button onClick={() => setResetUser(usuario)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Reset</button>
+                    {usuario.activo && <button onClick={() => desactivarUsuario(usuario)} className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Desactivar</button>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {resetUser && (
+        <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+          <h3 className="text-xl font-bold text-slate-950">Reset password: {resetUser.nombre}</h3>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <input className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white sm:max-w-sm" placeholder="Nueva password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+            <button onClick={resetPassword} className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700">Actualizar password</button>
+            <button onClick={() => setResetUser(null)} className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700">Cancelar</button>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
 function Content({
   active,
   onNavigate,
+  user,
 }: {
   active: ModuleKey;
   onNavigate: (key: ModuleKey) => void;
+  user: AuthUser;
 }) {
+  if (user.rol === "CAJERO" && !["dashboard", "ventas", "caja", "stock", "movimientos"].includes(active)) {
+    return <CajeroDashboard onNavigate={onNavigate as any} />;
+  }
+
   switch (active) {
     case "dashboard":
-      return <DashboardView onNavigate={onNavigate} />;
+      return user.rol === "CAJERO" ? (
+        <CajeroDashboard onNavigate={onNavigate as any} />
+      ) : (
+        <DashboardView onNavigate={onNavigate} />
+      );
     case "ventas":
       return <SalesView />;
     case "productos":
@@ -5956,8 +6350,8 @@ function Content({
       return <StockView />;
     case "movimientos":
       return <MovimientosView />;
-    case "ingresos":
-    return <IngresosView />;
+    case "caja":
+      return <CajaDiariaView rol={user.rol} />;
     case "ingresos":
       return <IngresosView />;
     case "proveedores":
@@ -5967,13 +6361,7 @@ function Content({
     case "reportes":
       return <ReportesView />;
     case "usuarios":
-      return (
-        <PlaceholderPage
-          eyebrow="Seguridad"
-          title="Usuarios"
-          description="Aquí irá la gestión de usuarios, roles y permisos dentro del sistema."
-        />
-      );
+      return <UsuariosView />;
     case "configuracion":
       return (
         <PlaceholderPage
@@ -5990,11 +6378,65 @@ function Content({
 export default function App() {
   const [active, setActive] = useState<ModuleKey>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    async function loadSession() {
+      try {
+        const user = await fetchJson<AuthUser>("/auth/me");
+        setCurrentUser(user);
+        if (user.rol === "CAJERO") {
+          setActive("ventas");
+        }
+      } catch {
+        clearAuthToken();
+        setCurrentUser(null);
+      } finally {
+        setCheckingSession(false);
+      }
+    }
+
+    loadSession();
+  }, []);
+
+  useEffect(() => {
+    function handleExpiredSession() {
+      setCurrentUser(null);
+      setActive("dashboard");
+    }
+
+    window.addEventListener("auth:expired", handleExpiredSession);
+    return () => window.removeEventListener("auth:expired", handleExpiredSession);
+  }, []);
+
+  function handleLogin(user: AuthUser) {
+    setCurrentUser(user);
+    setActive(user.rol === "ADMIN" ? "dashboard" : "ventas");
+  }
+
+  function handleLogout() {
+    clearAuthToken();
+    setCurrentUser(null);
+    setActive("dashboard");
+  }
 
   const currentTitle = useMemo(
     () => navigation.find((item) => item.key === active)?.label ?? "Dashboard",
     [active]
   );
+
+  if (checkingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fbfcf8] text-sm font-semibold text-slate-500">
+        Cargando sesión...
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <LoginView onLogin={handleLogin} />;
+  }
 
   return (
   <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(88,129,0,0.14),_transparent_34rem),linear-gradient(135deg,_#fbfcf8,_#f5f7ef_48%,_#ffffff)] p-2 sm:p-4 md:p-6">
@@ -6004,16 +6446,20 @@ export default function App() {
         onChange={setActive}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        user={currentUser}
       />
 
       <main className="min-w-0 flex-1 rounded-[22px] bg-white/70 p-3 sm:rounded-[26px] sm:p-4 md:rounded-[30px] md:p-6">
         <Header
           title={currentTitle}
           onOpenSidebar={() => setSidebarOpen(true)}
+          user={currentUser}
+          onLogout={handleLogout}
         />
-        <Content active={active} onNavigate={setActive} />
+        <Content active={active} onNavigate={setActive} user={currentUser} />
       </main>
     </div>
   </div>
 );
 }
+
