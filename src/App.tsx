@@ -582,7 +582,7 @@ function Header({
 
             <button
               onClick={onLogout}
-              className="hidden rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:block"
+              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 sm:px-4 sm:py-3 sm:text-sm"
             >
               Salir
             </button>
