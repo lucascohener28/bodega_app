@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { apiFetch, clearAuthToken, fetchJson, setAuthToken } from "./lib/api";
+import { BottomNavigation } from "./components/layout/BottomNavigation";
 import { CajaDiariaView } from "./modules/caja/CajaDiariaView";
 import { CajeroDashboard } from "./modules/cajero/CajeroDashboard";
 
@@ -425,6 +426,13 @@ const navigation: NavItem[] = [
   { key: "configuracion", label: "Configuración", icon: Settings },
 ];
 
+function getVisibleNavigation(user: AuthUser) {
+  if (user.rol === "ADMIN") return navigation;
+  return navigation.filter((item) =>
+    ["dashboard", "ventas", "caja", "stock", "movimientos"].includes(item.key)
+  );
+}
+
 function Sidebar({
   active,
   onChange,
@@ -438,10 +446,7 @@ function Sidebar({
   onClose: () => void;
   user: AuthUser;
 }) {
-  const visibleNavigation = navigation.filter((item) => {
-    if (user.rol === "ADMIN") return true;
-    return ["dashboard", "ventas", "caja", "stock", "movimientos"].includes(item.key);
-  });
+  const visibleNavigation = getVisibleNavigation(user);
 
   return (
     <>
@@ -6426,6 +6431,28 @@ export default function App() {
     [active]
   );
 
+  const visibleNavigation = useMemo(
+    () => (currentUser ? getVisibleNavigation(currentUser) : []),
+    [currentUser]
+  );
+
+  const bottomPrimaryItems = useMemo(() => {
+    const primaryKeys =
+      currentUser?.rol === "ADMIN"
+        ? ["dashboard", "ventas", "caja", "stock"]
+        : ["dashboard", "ventas", "caja", "stock", "movimientos"];
+
+    return primaryKeys
+      .map((key) => visibleNavigation.find((item) => item.key === key))
+      .filter(Boolean) as NavItem[];
+  }, [currentUser?.rol, visibleNavigation]);
+
+  const bottomMoreItems = useMemo(() => {
+    if (currentUser?.rol !== "ADMIN") return [];
+    const primary = new Set(bottomPrimaryItems.map((item) => item.key));
+    return visibleNavigation.filter((item) => !primary.has(item.key));
+  }, [bottomPrimaryItems, currentUser?.rol, visibleNavigation]);
+
   if (checkingSession) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fbfcf8] text-sm font-semibold text-slate-500">
@@ -6439,8 +6466,8 @@ export default function App() {
   }
 
   return (
-  <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(88,129,0,0.14),_transparent_34rem),linear-gradient(135deg,_#fbfcf8,_#f5f7ef_48%,_#ffffff)] p-2 sm:p-4 md:p-6">
-    <div className="mx-auto flex min-h-[calc(100vh-1rem)] max-w-[1680px] gap-0 rounded-[24px] border border-white/70 bg-white/70 p-2 shadow-[0_25px_80px_rgba(47,70,0,0.10)] sm:min-h-[calc(100vh-2rem)] sm:gap-4 sm:rounded-[30px] sm:p-3 md:gap-6 md:rounded-[36px] md:p-4">
+  <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(88,129,0,0.14),_transparent_34rem),linear-gradient(135deg,_#fbfcf8,_#f5f7ef_48%,_#ffffff)] p-2 pb-24 sm:p-4 sm:pb-28 md:p-6 md:pb-28 lg:pb-6">
+    <div className="mx-auto flex min-h-[calc(100vh-7rem)] max-w-[1680px] gap-0 rounded-[24px] border border-white/70 bg-white/70 p-2 shadow-[0_25px_80px_rgba(47,70,0,0.10)] sm:min-h-[calc(100vh-8rem)] sm:gap-4 sm:rounded-[30px] sm:p-3 md:gap-6 md:rounded-[36px] md:p-4 lg:min-h-[calc(100vh-3rem)]">
       <Sidebar
         active={active}
         onChange={setActive}
@@ -6459,6 +6486,12 @@ export default function App() {
         <Content active={active} onNavigate={setActive} user={currentUser} />
       </main>
     </div>
+    <BottomNavigation
+      active={active}
+      primaryItems={bottomPrimaryItems}
+      moreItems={bottomMoreItems}
+      onChange={setActive}
+    />
   </div>
 );
 }
