@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { prisma } from '../../config/prisma'
 import { authMiddleware } from '../../middlewares/auth.middleware'
-import { comparePassword } from '../../utils/password'
+import { comparePassword, hashPassword } from '../../utils/password'
 import { signAuthToken } from '../../utils/jwt'
 
 const router = Router()
@@ -48,6 +48,7 @@ router.post('/login', async (req, res) => {
         email: usuario.email,
         rol: usuario.rol,
         activo: usuario.activo,
+        debeCambiarPassword: usuario.debeCambiarPassword,
       },
     })
   } catch (error) {
@@ -67,6 +68,7 @@ router.get('/me', authMiddleware, async (req, res) => {
         email: true,
         rol: true,
         activo: true,
+        debeCambiarPassword: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -80,6 +82,60 @@ router.get('/me', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Error al obtener usuario autenticado' })
+  }
+})
+
+router.post('/change-password', authMiddleware, async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || '')
+    const newPassword = String(req.body.newPassword || '')
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Password actual y nueva password son obligatorias' })
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'La nueva password debe tener al menos 6 caracteres' })
+    }
+
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: req.user!.id },
+    })
+
+    if (!usuario || !usuario.activo) {
+      return res.status(401).json({ error: 'Usuario no autorizado' })
+    }
+
+    const passwordValido = await comparePassword(currentPassword, usuario.password)
+
+    if (!passwordValido) {
+      return res.status(400).json({ error: 'Password actual incorrecta' })
+    }
+
+    const updated = await prisma.usuario.update({
+      where: { id: usuario.id },
+      data: {
+        password: await hashPassword(newPassword),
+        debeCambiarPassword: false,
+      },
+      select: {
+        id: true,
+        nombre: true,
+        username: true,
+        email: true,
+        rol: true,
+        activo: true,
+        debeCambiarPassword: true,
+      },
+    })
+
+    res.json({
+      message: 'Password actualizada correctamente',
+      usuario: updated,
+    })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Error al cambiar password' })
   }
 })
 

@@ -14,6 +14,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seed:admin": "npm run build && node dist/scripts/seed-admin.js",
+    "reset:operational-data": "tsx src/scripts/reset-operational-data.ts",
     "db:export-data": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -SkipImport",
     "db:import-supabase": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -SkipExport",
     "db:migrate-data:supabase": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -TruncateBeforeImport",
@@ -40,6 +41,7 @@
     "@types/node": "^25.5.0",
     "prisma": "^7.6.0",
     "ts-node-dev": "^2.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   }
 }

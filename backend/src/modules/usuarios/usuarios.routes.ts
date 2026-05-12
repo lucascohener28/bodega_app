@@ -34,6 +34,7 @@ router.get('/', async (_req, res) => {
         email: true,
         rol: true,
         activo: true,
+        debeCambiarPassword: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -69,6 +70,7 @@ router.post('/', async (req, res) => {
         email,
         password: await hashPassword(password),
         rol,
+        debeCambiarPassword: true,
       },
       select: {
         id: true,
@@ -77,6 +79,7 @@ router.post('/', async (req, res) => {
         email: true,
         rol: true,
         activo: true,
+        debeCambiarPassword: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -126,6 +129,7 @@ router.patch('/:id', async (req, res) => {
         email: true,
         rol: true,
         activo: true,
+        debeCambiarPassword: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -159,6 +163,7 @@ router.patch('/:id/desactivar', async (req, res) => {
         email: true,
         rol: true,
         activo: true,
+        debeCambiarPassword: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -186,7 +191,10 @@ router.patch('/:id/reset-password', async (req, res) => {
 
     await prisma.usuario.update({
       where: { id: req.params.id },
-      data: { password: await hashPassword(password) },
+      data: {
+        password: await hashPassword(password),
+        debeCambiarPassword: true,
+      },
     })
 
     res.json({ message: 'Password actualizada correctamente' })

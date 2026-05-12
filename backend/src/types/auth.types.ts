@@ -4,6 +4,7 @@ export type AuthUser = {
   id: string
   username: string
   rol: Rol
+  debeCambiarPassword?: boolean
 }
 
 declare global {

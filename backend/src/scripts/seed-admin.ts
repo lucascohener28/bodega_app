@@ -3,29 +3,62 @@ import { prisma } from '../config/prisma'
 import { hashPassword } from '../utils/password'
 
 async function main() {
-  const username = process.env.ADMIN_DEFAULT_USERNAME || 'admin'
-  const password = process.env.ADMIN_DEFAULT_PASSWORD || 'admin123'
+  const username = process.env.ADMIN_DEFAULT_USERNAME || 'Osvaldo'
+  const password = process.env.ADMIN_DEFAULT_PASSWORD || 'Cohete018'
+  const passwordHash = await hashPassword(password)
 
-  const existing = await prisma.usuario.findUnique({
+  const targetAdmin = await prisma.usuario.findUnique({
     where: { username },
   })
 
-  if (existing) {
-    console.log(`Admin default ya existe: ${username}`)
+  if (targetAdmin) {
+    await prisma.usuario.update({
+      where: { id: targetAdmin.id },
+      data: {
+        nombre: 'Osvaldo',
+        username,
+        password: passwordHash,
+        rol: Rol.ADMIN,
+        activo: true,
+        debeCambiarPassword: false,
+      },
+    })
+    console.log(`Admin principal actualizado: ${username}`)
+    return
+  }
+
+  const legacyAdmin = await prisma.usuario.findUnique({
+    where: { username: 'admin' },
+  })
+
+  if (legacyAdmin) {
+    await prisma.usuario.update({
+      where: { id: legacyAdmin.id },
+      data: {
+        nombre: 'Osvaldo',
+        username,
+        password: passwordHash,
+        rol: Rol.ADMIN,
+        activo: true,
+        debeCambiarPassword: false,
+      },
+    })
+    console.log(`Admin viejo actualizado a: ${username}`)
     return
   }
 
   await prisma.usuario.create({
     data: {
-      nombre: 'Administrador',
+      nombre: 'Osvaldo',
       username,
-      password: await hashPassword(password),
+      password: passwordHash,
       rol: Rol.ADMIN,
       activo: true,
+      debeCambiarPassword: false,
     },
   })
 
-  console.log(`Admin default creado: ${username}`)
+  console.log(`Admin principal creado: ${username}`)
 }
 
 main()

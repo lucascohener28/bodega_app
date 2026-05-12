@@ -188,6 +188,7 @@ model Usuario {
   password  String
   rol       Rol      @default(CAJERO)
   activo    Boolean  @default(true)
+  debeCambiarPassword Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

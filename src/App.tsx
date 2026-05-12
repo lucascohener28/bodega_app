@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { apiFetch, clearAuthToken, fetchJson, setAuthToken } from "./lib/api";
 import { BottomNavigation } from "./components/layout/BottomNavigation";
+import { ChangePasswordRequired } from "./components/auth/ChangePasswordRequired";
 import { CajaDiariaView } from "./modules/caja/CajaDiariaView";
 import { CajeroDashboard } from "./modules/cajero/CajeroDashboard";
 
@@ -48,6 +49,7 @@ type AuthUser = {
   email: string | null;
   rol: UserRole;
   activo: boolean;
+  debeCambiarPassword: boolean;
 };
 
 type LoginResponse = {
@@ -6215,9 +6217,10 @@ function UsuariosView() {
         throw new Error(data.error || "No se pudo resetear la password");
       }
 
-      setSuccess("Password actualizada");
+      setSuccess("Password temporal actualizada");
       setResetUser(null);
       setNewPassword("");
+      await loadUsuarios();
     } catch (err: any) {
       setError(err.message || "Error al resetear password");
     }
@@ -6247,7 +6250,10 @@ function UsuariosView() {
             {!editingUser && (
               <>
                 <input className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white" placeholder="Username" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} />
-                <input className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white" placeholder="Password inicial" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
+                <input className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white" placeholder="Contraseña temporal" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
+                <p className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  El usuario deberá cambiar esta contraseña al iniciar sesión por primera vez.
+                </p>
               </>
             )}
             <input className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white" placeholder="Email opcional" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
@@ -6293,6 +6299,11 @@ function UsuariosView() {
                   <div className="min-w-0">
                     <p className="font-bold text-slate-950">{usuario.nombre}</p>
                     <p className="text-sm text-slate-500">@{usuario.username}</p>
+                    {usuario.debeCambiarPassword && (
+                      <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                        Debe cambiar contraseña
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-slate-600">{usuario.email || "Sin email"}</p>
                   <span className="w-fit rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">{usuario.rol}</span>
@@ -6420,6 +6431,11 @@ export default function App() {
     setActive(user.rol === "ADMIN" ? "dashboard" : "ventas");
   }
 
+  function handlePasswordChanged(user: AuthUser) {
+    setCurrentUser(user);
+    setActive(user.rol === "ADMIN" ? "dashboard" : "ventas");
+  }
+
   function handleLogout() {
     clearAuthToken();
     setCurrentUser(null);
@@ -6463,6 +6479,16 @@ export default function App() {
 
   if (!currentUser) {
     return <LoginView onLogin={handleLogin} />;
+  }
+
+  if (currentUser.debeCambiarPassword) {
+    return (
+      <ChangePasswordRequired
+        user={currentUser}
+        onPasswordChanged={handlePasswordChanged}
+        onLogout={handleLogout}
+      />
+    );
   }
 
   return (
