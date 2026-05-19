@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../config/prisma'
+import { calcularSubtotalLiquidacion } from '../services/liquidaciones.service'
 
 const router = Router()
 
@@ -73,6 +74,9 @@ router.get('/', async (req, res) => {
         stockActual: number
         stockMinimo: number
         costoProveedor: number
+        costoPack: number | null
+        manejaPack: boolean
+        unidadesPorPack: number | null
         cantidadVendida: number
         totalVendido: number
         costoTotal: number
@@ -93,6 +97,9 @@ router.get('/', async (req, res) => {
         stockActual: producto.stockActual,
         stockMinimo: producto.stockMinimo,
         costoProveedor: producto.costoProveedor,
+        costoPack: producto.costoPack,
+        manejaPack: producto.manejaPack,
+        unidadesPorPack: producto.unidadesPorPack,
         cantidadVendida: 0,
         totalVendido: 0,
         costoTotal: 0,
@@ -117,10 +124,15 @@ router.get('/', async (req, res) => {
     const productosAnalizados = Array.from(productosMap.values()).map((item) => {
       const precioPromedioVenta =
         item.cantidadVendida > 0 ? item.totalVendido / item.cantidadVendida : 0
-      const costoTotal = item.cantidadVendida * item.costoProveedor
+      const costoTotal = calcularSubtotalLiquidacion(item.cantidadVendida, {
+        costoProveedor: item.costoProveedor,
+        costoPack: item.costoPack,
+        manejaPack: item.manejaPack,
+        unidadesPorPack: item.unidadesPorPack,
+      })
       const gananciaTotal = item.totalVendido - costoTotal
       const gananciaUnidad =
-        item.cantidadVendida > 0 ? precioPromedioVenta - item.costoProveedor : 0
+        item.cantidadVendida > 0 ? gananciaTotal / item.cantidadVendida : 0
 
       return {
         ...item,
