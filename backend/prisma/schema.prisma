@@ -34,6 +34,8 @@ model Producto {
   codigo         String   @unique
   precioVenta    Float
   costoProveedor Float
+  precioVentaPack Float?
+  costoPack      Float?
   stockActual    Int      @default(0)
   stockMinimo    Int      @default(0)
   activo         Boolean  @default(true)

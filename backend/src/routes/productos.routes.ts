@@ -1,10 +1,58 @@
 import { Router } from 'express'
+import { Rol } from '@prisma/client'
 import { prisma } from '../config/prisma'
 import { roleMiddleware } from '../middlewares/role.middleware'
-import { Rol } from '@prisma/client'
 
 const router = Router()
 const adminOnly = roleMiddleware([Rol.ADMIN])
+
+function roundToThousand(value: number) {
+  return Math.round(value / 1000) * 1000
+}
+
+function resolvePackPricing(body: any, current?: any) {
+  const manejaPack =
+    body.manejaPack !== undefined ? Boolean(body.manejaPack) : Boolean(current?.manejaPack)
+  const unidadesPorPack = manejaPack
+    ? Number(body.unidadesPorPack ?? current?.unidadesPorPack)
+    : 1
+
+  if (manejaPack && (!Number.isFinite(unidadesPorPack) || unidadesPorPack <= 0)) {
+    throw new Error('Debes indicar cuantas unidades tiene el pack')
+  }
+
+  const previousUnits = current?.unidadesPorPack || 1
+  const costoPack = Number(
+    body.costoPack ??
+      (body.costoProveedor !== undefined ? Number(body.costoProveedor) * unidadesPorPack : undefined) ??
+      current?.costoPack ??
+      (current?.costoProveedor !== undefined ? current.costoProveedor * previousUnits : undefined)
+  )
+  const precioVentaPack = Number(
+    body.precioVentaPack ??
+      (body.precioVenta !== undefined ? Number(body.precioVenta) * unidadesPorPack : undefined) ??
+      current?.precioVentaPack ??
+      (current?.precioVenta !== undefined ? current.precioVenta * previousUnits : undefined)
+  )
+
+  if (
+    !Number.isFinite(costoPack) ||
+    !Number.isFinite(precioVentaPack) ||
+    costoPack < 0 ||
+    precioVentaPack < 0
+  ) {
+    throw new Error('Costo pack y precio venta pack son obligatorios')
+  }
+
+  return {
+    manejaPack,
+    unidadesPorPack: manejaPack ? unidadesPorPack : null,
+    costoPack,
+    precioVentaPack,
+    costoProveedor: roundToThousand(costoPack / unidadesPorPack),
+    precioVenta: roundToThousand(precioVentaPack / unidadesPorPack),
+  }
+}
 
 router.get('/', async (_req, res) => {
   try {
@@ -31,7 +79,7 @@ router.get('/:id', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de producto invÃ¡lido',
+        error: 'ID de producto invalido',
       })
     }
 
@@ -61,25 +109,14 @@ router.post('/', adminOnly, async (req, res) => {
     const {
       nombre,
       codigo,
-      precioVenta,
-      costoProveedor,
       stockActual,
       stockMinimo,
       activo,
       categoriaId,
       proveedorId,
-      manejaPack,
-      unidadesPorPack,
     } = req.body
 
-    if (
-      !nombre ||
-      !codigo ||
-      precioVenta === undefined ||
-      costoProveedor === undefined ||
-      categoriaId === undefined ||
-      proveedorId === undefined
-    ) {
+    if (!nombre || !codigo || categoriaId === undefined || proveedorId === undefined) {
       return res.status(400).json({
         error: 'Faltan campos obligatorios',
       })
@@ -91,7 +128,7 @@ router.post('/', adminOnly, async (req, res) => {
 
     if (!nuevaCategoria) {
       return res.status(400).json({
-        error: 'La categorÃ­a no existe',
+        error: 'La categoria no existe',
       })
     }
 
@@ -105,36 +142,41 @@ router.post('/', adminOnly, async (req, res) => {
       })
     }
 
+    const pricing = resolvePackPricing(req.body)
+
     const nuevoProducto = await prisma.producto.create({
-  data: {
-    nombre: String(nombre).trim(),
-    codigo: String(codigo).trim(),
-    precioVenta: Number(precioVenta),
-    costoProveedor: Number(costoProveedor),
-    stockActual: stockActual !== undefined ? Number(stockActual) : 0,
-    stockMinimo: stockMinimo !== undefined ? Number(stockMinimo) : 0,
-    activo: activo !== undefined ? Boolean(activo) : true,
-    categoriaId: Number(categoriaId),
-    proveedorId: Number(proveedorId),
-    manejaPack: manejaPack !== undefined ? Boolean(manejaPack) : false,
-    unidadesPorPack:
-      manejaPack !== undefined && Boolean(manejaPack)
-        ? Number(unidadesPorPack)
-        : null,
-  },
-  include: {
-    categoria: true,
-    proveedor: true,
-  },
-})
+      data: {
+        nombre: String(nombre).trim(),
+        codigo: String(codigo).trim(),
+        precioVenta: pricing.precioVenta,
+        costoProveedor: pricing.costoProveedor,
+        precioVentaPack: pricing.precioVentaPack,
+        costoPack: pricing.costoPack,
+        stockActual: stockActual !== undefined ? Number(stockActual) : 0,
+        stockMinimo: stockMinimo !== undefined ? Number(stockMinimo) : 0,
+        activo: activo !== undefined ? Boolean(activo) : true,
+        categoriaId: Number(categoriaId),
+        proveedorId: Number(proveedorId),
+        manejaPack: pricing.manejaPack,
+        unidadesPorPack: pricing.unidadesPorPack,
+      },
+      include: {
+        categoria: true,
+        proveedor: true,
+      },
+    })
 
     res.status(201).json(nuevoProducto)
   } catch (error: any) {
     console.error(error)
 
+    if (error.message?.includes('pack')) {
+      return res.status(400).json({ error: error.message })
+    }
+
     if (error.code === 'P2002') {
       return res.status(400).json({
-        error: 'Ya existe un producto con ese cÃ³digo',
+        error: 'Ya existe un producto con ese codigo',
       })
     }
 
@@ -150,22 +192,18 @@ router.put('/:id', adminOnly, async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de producto invÃ¡lido',
+        error: 'ID de producto invalido',
       })
     }
 
     const {
       nombre,
       codigo,
-      precioVenta,
-      costoProveedor,
       stockActual,
       stockMinimo,
       activo,
       categoriaId,
       proveedorId,
-      manejaPack,
-      unidadesPorPack,
     } = req.body
 
     const productoExistente = await prisma.producto.findUnique({
@@ -178,26 +216,24 @@ router.put('/:id', adminOnly, async (req, res) => {
       })
     }
 
+    const pricing = resolvePackPricing(req.body, productoExistente)
+
     const productoActualizado = await prisma.producto.update({
       where: { id },
       data: {
         nombre: nombre !== undefined ? String(nombre).trim() : undefined,
         codigo: codigo !== undefined ? String(codigo).trim() : undefined,
-        precioVenta: precioVenta !== undefined ? Number(precioVenta) : undefined,
-        costoProveedor:
-          costoProveedor !== undefined ? Number(costoProveedor) : undefined,
+        precioVenta: pricing.precioVenta,
+        costoProveedor: pricing.costoProveedor,
+        precioVentaPack: pricing.precioVentaPack,
+        costoPack: pricing.costoPack,
         stockActual: stockActual !== undefined ? Number(stockActual) : undefined,
         stockMinimo: stockMinimo !== undefined ? Number(stockMinimo) : undefined,
         activo: activo !== undefined ? Boolean(activo) : undefined,
         categoriaId: categoriaId !== undefined ? Number(categoriaId) : undefined,
         proveedorId: proveedorId !== undefined ? Number(proveedorId) : undefined,
-
-        // âœ… ESTA ES LA CLAVE
-        manejaPack: manejaPack !== undefined ? Boolean(manejaPack) : undefined,
-        unidadesPorPack:
-          manejaPack
-            ? Number(unidadesPorPack)
-            : null,
+        manejaPack: pricing.manejaPack,
+        unidadesPorPack: pricing.unidadesPorPack,
       },
       include: {
         categoria: true,
@@ -209,9 +245,13 @@ router.put('/:id', adminOnly, async (req, res) => {
   } catch (error: any) {
     console.error(error)
 
+    if (error.message?.includes('pack')) {
+      return res.status(400).json({ error: error.message })
+    }
+
     if (error.code === 'P2002') {
       return res.status(400).json({
-        error: 'Ya existe un producto con ese cÃ³digo',
+        error: 'Ya existe un producto con ese codigo',
       })
     }
 
@@ -227,7 +267,7 @@ router.patch('/:id/estado', adminOnly, async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de producto invÃ¡lido',
+        error: 'ID de producto invalido',
       })
     }
 
@@ -275,7 +315,7 @@ router.patch('/:id/ajustar-stock', adminOnly, async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de producto invÃ¡lido',
+        error: 'ID de producto invalido',
       })
     }
 
@@ -291,7 +331,7 @@ router.patch('/:id/ajustar-stock', adminOnly, async (req, res) => {
 
     if (isNaN(cantidadNumero) || cantidadNumero < 0) {
       return res.status(400).json({
-        error: 'La cantidad debe ser un nÃºmero vÃ¡lido mayor o igual a 0',
+        error: 'La cantidad debe ser un numero valido mayor o igual a 0',
       })
     }
 
@@ -319,7 +359,7 @@ router.patch('/:id/ajustar-stock', adminOnly, async (req, res) => {
       nuevoStock = cantidadNumero
     } else {
       return res.status(400).json({
-        error: 'Tipo de ajuste invÃ¡lido',
+        error: 'Tipo de ajuste invalido',
       })
     }
 

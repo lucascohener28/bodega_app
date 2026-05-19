@@ -34,7 +34,7 @@ router.get('/:id', async (req, res) => {
 
     if (isNaN(id)) {
       return res.status(400).json({
-        error: 'ID de ingreso invÃ¡lido',
+        error: 'ID de ingreso invalido',
       })
     }
 
@@ -91,7 +91,7 @@ router.post('/', async (req, res) => {
 
     if (!tiposValidos.includes(tipoIngreso)) {
       return res.status(400).json({
-        error: 'Tipo de ingreso invÃ¡lido',
+        error: 'Tipo de ingreso invalido',
       })
     }
 
@@ -107,7 +107,7 @@ router.post('/', async (req, res) => {
 
     if (productos.length !== productosIds.length) {
       return res.status(400).json({
-        error: 'Uno o mÃ¡s productos no existen',
+        error: 'Uno o mas productos no existen',
       })
     }
 
@@ -122,30 +122,42 @@ router.post('/', async (req, res) => {
 
       for (const item of detalles) {
         const productoId = Number(item.productoId)
-        const cantidad = Number(item.cantidad)
-        const costoUnitario = Number(item.costoUnitario)
-
-        if (!productoId || cantidad <= 0 || costoUnitario < 0) {
-          throw new Error('Detalle de ingreso invÃ¡lido')
-        }
-
-        const subtotal = cantidad * costoUnitario
-
-        const productoActual = await tx.producto.findUnique({
-          where: {
-            id: productoId,
-          },
-        })
+        const productoActual = productos.find((producto) => producto.id === productoId)
 
         if (!productoActual) {
           throw new Error('Producto no encontrado')
         }
 
+        const unidadesPorPack =
+          productoActual.manejaPack && productoActual.unidadesPorPack
+            ? productoActual.unidadesPorPack
+            : 1
+        const cantidadPacks =
+          item.cantidadPacks !== undefined ? Number(item.cantidadPacks) : Number(item.cantidad)
+        const costoPack =
+          item.costoPack !== undefined
+            ? Number(item.costoPack)
+            : Number(item.costoUnitario) * unidadesPorPack
+        const cantidadUnidades = cantidadPacks * unidadesPorPack
+        const costoUnitario = costoPack / unidadesPorPack
+
+        if (
+          !productoId ||
+          !Number.isFinite(cantidadPacks) ||
+          cantidadPacks <= 0 ||
+          !Number.isFinite(costoPack) ||
+          costoPack < 0
+        ) {
+          throw new Error('Detalle de ingreso invalido')
+        }
+
+        const subtotal = cantidadUnidades * costoUnitario
+
         await tx.detalleIngresoMercaderia.create({
           data: {
             ingresoId: nuevoIngreso.id,
             productoId,
-            cantidad,
+            cantidad: cantidadUnidades,
             costoUnitario,
             subtotal,
           },
@@ -157,7 +169,7 @@ router.post('/', async (req, res) => {
           },
           data: {
             stockActual: {
-              increment: cantidad,
+              increment: cantidadUnidades,
             },
           },
         })
@@ -166,12 +178,14 @@ router.post('/', async (req, res) => {
           data: {
             productoId,
             tipoMovimiento: 'ENTRADA',
-            cantidad,
+            cantidad: cantidadUnidades,
             stockAnterior: productoActual.stockActual,
-            stockNuevo: productoActual.stockActual + cantidad,
+            stockNuevo: productoActual.stockActual + cantidadUnidades,
             referenciaTipo: 'INGRESO',
             referenciaId: nuevoIngreso.id,
-            observacion: `Ingreso de mercaderÃ­a #${nuevoIngreso.id}`,
+            observacion: productoActual.manejaPack
+              ? `Ingreso de mercaderia #${nuevoIngreso.id}: ${cantidadPacks} packs x ${unidadesPorPack} unidades = ${cantidadUnidades} unidades`
+              : `Ingreso de mercaderia #${nuevoIngreso.id}: ${cantidadUnidades} unidades`,
           },
         })
       }
@@ -197,9 +211,9 @@ router.post('/', async (req, res) => {
   } catch (error: any) {
     console.error(error)
 
-    if (error.message === 'Detalle de ingreso invÃ¡lido') {
+    if (error.message === 'Detalle de ingreso invalido') {
       return res.status(400).json({
-        error: 'Uno de los detalles del ingreso es invÃ¡lido',
+        error: 'Uno de los detalles del ingreso es invalido',
       })
     }
 

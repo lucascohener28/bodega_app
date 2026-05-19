@@ -173,6 +173,8 @@ type ProductoVenta = {
   codigo: string;
   precioVenta: number;
   costoProveedor: number;
+  precioVentaPack: number | null;
+  costoPack: number | null;
   stockActual: number;
   stockMinimo: number;
   activo: boolean;
@@ -361,6 +363,18 @@ function formatPackBreakdown(unidades: number, unidadesPorPack: number | null) {
   }
 
   return `${packsCompletos} pack${packsCompletos === 1 ? "" : "s"} + ${unidadesSueltas} u.`;
+}
+
+function getPackUnits(manejaPack: boolean, unidadesPorPack: string | number | null | undefined) {
+  if (!manejaPack) return 1;
+  const units = Number(unidadesPorPack);
+  return Number.isFinite(units) && units > 0 ? units : 0;
+}
+
+function getCalculatedUnitValue(packValue: string | number | null | undefined, units: number) {
+  const value = Number(packValue);
+  if (!Number.isFinite(value) || units <= 0) return 0;
+  return Math.round(value / units / 1000) * 1000;
 }
 
 function getPackMetrics(params: {
@@ -3403,8 +3417,8 @@ function ProductsView() {
   const [newProduct, setNewProduct] = useState({
     nombre: "",
     codigo: "",
-    precioVenta: "",
-    costoProveedor: "",
+    precioVentaPack: "",
+    costoPack: "",
     stockMinimo: "",
     categoriaId: "",
     proveedorId: "",
@@ -3417,8 +3431,8 @@ function ProductsView() {
     id: 0,
     nombre: "",
     codigo: "",
-    precioVenta: "",
-    costoProveedor: "",
+    precioVentaPack: "",
+    costoPack: "",
     stockMinimo: "",
     categoriaId: "",
     proveedorId: "",
@@ -3481,8 +3495,8 @@ function ProductsView() {
       if (
         !newProduct.nombre.trim() ||
         !newProduct.codigo.trim() ||
-        newProduct.precioVenta === "" ||
-        newProduct.costoProveedor === "" ||
+        newProduct.precioVentaPack === "" ||
+        newProduct.costoPack === "" ||
         newProduct.categoriaId === "" ||
         newProduct.proveedorId === ""
       ) {
@@ -3515,8 +3529,8 @@ function ProductsView() {
         body: JSON.stringify({
           nombre: newProduct.nombre,
           codigo: newProduct.codigo,
-          precioVenta: Number(newProduct.precioVenta),
-          costoProveedor: Number(newProduct.costoProveedor),
+          precioVentaPack: Number(newProduct.precioVentaPack),
+          costoPack: Number(newProduct.costoPack),
           stockActual: 0,
           stockMinimo:
             newProduct.stockMinimo === "" ? 0 : Number(newProduct.stockMinimo),
@@ -3540,8 +3554,8 @@ function ProductsView() {
       setNewProduct({
         nombre: "",
         codigo: "",
-        precioVenta: "",
-        costoProveedor: "",
+        precioVentaPack: "",
+        costoPack: "",
         stockMinimo: "",
         categoriaId: "",
         proveedorId: "",
@@ -3570,8 +3584,8 @@ function ProductsView() {
     id: product.id,
     nombre: product.nombre,
     codigo: product.codigo,
-    precioVenta: String(product.precioVenta),
-    costoProveedor: String(product.costoProveedor),
+    precioVentaPack: String(product.precioVentaPack ?? product.precioVenta * (product.unidadesPorPack || 1)),
+    costoPack: String(product.costoPack ?? product.costoProveedor * (product.unidadesPorPack || 1)),
     stockMinimo: String(product.stockMinimo),
     categoriaId: String(product.categoria.id),
     proveedorId: String(product.proveedor.id),
@@ -3589,8 +3603,8 @@ function ProductsView() {
       if (
         !editProduct.nombre.trim() ||
         !editProduct.codigo.trim() ||
-        editProduct.precioVenta === "" ||
-        editProduct.costoProveedor === "" ||
+        editProduct.precioVentaPack === "" ||
+        editProduct.costoPack === "" ||
         editProduct.categoriaId === "" ||
         editProduct.proveedorId === ""
       ) {
@@ -3623,8 +3637,8 @@ function ProductsView() {
           body: JSON.stringify({
             nombre: editProduct.nombre,
             codigo: editProduct.codigo,
-            precioVenta: Number(editProduct.precioVenta),
-            costoProveedor: Number(editProduct.costoProveedor),
+            precioVentaPack: Number(editProduct.precioVentaPack),
+            costoPack: Number(editProduct.costoPack),
             stockMinimo:
               editProduct.stockMinimo === ""
                 ? 0
@@ -3721,28 +3735,28 @@ function ProductsView() {
   <input
     type="number"
     min="0"
-    value={newProduct.precioVenta}
+    value={newProduct.precioVentaPack}
     onChange={(e) =>
       setNewProduct((prev) => ({
         ...prev,
-        precioVenta: e.target.value,
+        precioVentaPack: e.target.value,
       }))
     }
-    placeholder="Precio de venta"
+    placeholder="Precio venta pack"
     className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
   />
 
   <input
     type="number"
     min="0"
-    value={newProduct.costoProveedor}
+    value={newProduct.costoPack}
     onChange={(e) =>
       setNewProduct((prev) => ({
         ...prev,
-        costoProveedor: e.target.value,
+        costoPack: e.target.value,
       }))
     }
-    placeholder="Costo proveedor"
+    placeholder="Costo pack"
     className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white"
   />
 
@@ -3838,6 +3852,18 @@ function ProductsView() {
     placeholder="Unidades por pack"
     disabled={!newProduct.manejaPack}
     className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-brand-300 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+  />
+  <input
+    readOnly
+    value={formatGs(getCalculatedUnitValue(newProduct.precioVentaPack, getPackUnits(newProduct.manejaPack, newProduct.unidadesPorPack)))}
+    className="h-12 rounded-2xl border border-brand-100 bg-brand-50 px-4 text-sm font-semibold text-brand-700 outline-none"
+    placeholder="Precio unitario calculado"
+  />
+  <input
+    readOnly
+    value={formatGs(getCalculatedUnitValue(newProduct.costoPack, getPackUnits(newProduct.manejaPack, newProduct.unidadesPorPack)))}
+    className="h-12 rounded-2xl border border-brand-100 bg-brand-50 px-4 text-sm font-semibold text-brand-700 outline-none"
+    placeholder="Costo unitario calculado"
   />
 </div>
 
@@ -4203,28 +4229,28 @@ function ProductsView() {
               <input
                 type="number"
                 min="0"
-                value={editProduct.precioVenta}
+                value={editProduct.precioVentaPack}
                 onChange={(e) =>
                   setEditProduct((prev) => ({
                     ...prev,
-                    precioVenta: e.target.value,
+                    precioVentaPack: e.target.value,
                   }))
                 }
-                placeholder="Precio de venta"
+                placeholder="Precio venta pack"
                 className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
               />
 
               <input
                 type="number"
                 min="0"
-                value={editProduct.costoProveedor}
+                value={editProduct.costoPack}
                 onChange={(e) =>
                   setEditProduct((prev) => ({
                     ...prev,
-                    costoProveedor: e.target.value,
+                    costoPack: e.target.value,
                   }))
                 }
-                placeholder="Costo proveedor"
+                placeholder="Costo pack"
                 className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white"
               />
 
@@ -4322,6 +4348,18 @@ function ProductsView() {
                 placeholder="Unidades por pack"
                 disabled={!editProduct.manejaPack}
                 className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-amber-300 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              <input
+                readOnly
+                value={formatGs(getCalculatedUnitValue(editProduct.precioVentaPack, getPackUnits(editProduct.manejaPack, editProduct.unidadesPorPack)))}
+                className="h-12 rounded-2xl border border-brand-100 bg-brand-50 px-4 text-sm font-semibold text-brand-700 outline-none"
+                placeholder="Precio unitario calculado"
+              />
+              <input
+                readOnly
+                value={formatGs(getCalculatedUnitValue(editProduct.costoPack, getPackUnits(editProduct.manejaPack, editProduct.unidadesPorPack)))}
+                className="h-12 rounded-2xl border border-brand-100 bg-brand-50 px-4 text-sm font-semibold text-brand-700 outline-none"
+                placeholder="Costo unitario calculado"
               />
             </div>
 
@@ -4457,7 +4495,9 @@ function IngresosView() {
           );
 
           if (selectedProduct) {
-            updated.costoUnitario = selectedProduct.costoProveedor;
+            updated.costoUnitario =
+              selectedProduct.costoPack ??
+              selectedProduct.costoProveedor * (selectedProduct.unidadesPorPack || 1);
           }
         }
 
@@ -4502,8 +4542,8 @@ function IngresosView() {
           observacion,
           detalles: detallesValidos.map((item) => ({
             productoId: item.productoId,
-            cantidad: Number(item.cantidad),
-            costoUnitario: Number(item.costoUnitario),
+            cantidadPacks: Number(item.cantidad),
+            costoPack: Number(item.costoUnitario),
           })),
         }),
       });
@@ -4714,6 +4754,9 @@ function IngresosView() {
             {items.map((item) => {
               const subtotal =
                 Number(item.cantidad) * Number(item.costoUnitario);
+              const selectedProduct = products.find((product) => product.id === Number(item.productoId));
+              const unitsPerPack = selectedProduct?.unidadesPorPack || 1;
+              const totalUnits = Number(item.cantidad) * unitsPerPack;
 
               return (
                 <div
@@ -4749,7 +4792,7 @@ function IngresosView() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                          Cantidad
+                          Packs ingresados
                         </label>
                         <input
                           type="number"
@@ -4768,7 +4811,7 @@ function IngresosView() {
 
                       <div>
                         <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                          Costo
+                          Costo pack
                         </label>
                         <input
                           type="number"
@@ -4783,6 +4826,19 @@ function IngresosView() {
                           }
                           className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-brand-300"
                         />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                          Equivalencia
+                        </p>
+                        <p className="mt-1 text-base font-bold text-slate-950">
+                          {selectedProduct?.manejaPack
+                            ? `${item.cantidad} packs x ${unitsPerPack} = ${totalUnits} unidades`
+                            : `${totalUnits} unidades`}
+                        </p>
                       </div>
                     </div>
 
@@ -4814,8 +4870,9 @@ function IngresosView() {
               <thead>
                 <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                   <th className="pb-2">Producto</th>
-                  <th className="pb-2">Cantidad</th>
-                  <th className="pb-2">Costo unitario</th>
+                  <th className="pb-2">Packs</th>
+                  <th className="pb-2">Costo pack</th>
+                  <th className="pb-2">Equivalencia</th>
                   <th className="pb-2">Subtotal</th>
                   <th className="pb-2">Acción</th>
                 </tr>
@@ -4825,6 +4882,9 @@ function IngresosView() {
                 {items.map((item) => {
                   const subtotal =
                     Number(item.cantidad) * Number(item.costoUnitario);
+                  const selectedProduct = products.find((product) => product.id === Number(item.productoId));
+                  const unitsPerPack = selectedProduct?.unidadesPorPack || 1;
+                  const totalUnits = Number(item.cantidad) * unitsPerPack;
 
                   return (
                     <tr key={item.id} className="rounded-2xl bg-slate-50">
@@ -4880,6 +4940,12 @@ function IngresosView() {
                           }
                           className="h-11 w-32 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-brand-300"
                         />
+                      </td>
+
+                      <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                        {selectedProduct?.manejaPack
+                          ? `${item.cantidad} packs x ${unitsPerPack} = ${totalUnits} u.`
+                          : `${totalUnits} u.`}
                       </td>
 
                       <td className="px-4 py-4 font-semibold text-slate-900">
