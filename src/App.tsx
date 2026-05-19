@@ -5958,7 +5958,7 @@ function LiquidacionesView() {
                       </button>
                     </div>
 
-                    <div className="space-y-3 md:hidden">
+                    <div className="grid gap-3 2xl:grid-cols-2">
                       {selectedLiquidacion.resumen.detalles.map((item) => {
                         const packInfo = getPackMetrics({
                           cantidadIngresada: item.cantidadIngresada,
@@ -5992,7 +5992,7 @@ function LiquidacionesView() {
                               </span>
                             </div>
 
-                            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                            <div className="mt-4 grid grid-cols-2 gap-3 text-sm lg:grid-cols-3">
                               <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                                   Packs a cobrar
@@ -6029,7 +6029,7 @@ function LiquidacionesView() {
                                 </p>
                               </div>
 
-                              <div className="col-span-2">
+                              <div className="col-span-2 lg:col-span-1">
                                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                                   Stock restante
                                 </p>
@@ -6041,71 +6041,6 @@ function LiquidacionesView() {
                           </div>
                         );
                       })}
-                    </div>
-
-                    <div className="hidden overflow-x-auto md:block">
-                      <table className="w-full min-w-[1180px] border-separate border-spacing-y-3">
-                        <thead>
-                          <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                            <th className="pb-2">Producto</th>
-                            <th className="pb-2">Vendido</th>
-                            <th className="pb-2">Packs a cobrar</th>
-                            <th className="pb-2">Costo pack</th>
-                            <th className="pb-2">Pago proveedor</th>
-                            <th className="pb-2">Total vendido</th>
-                            <th className="pb-2">Ganancia</th>
-                            <th className="pb-2">Stock</th>
-                          </tr>
-                        </thead>
-
-                        <tbody>
-                          {selectedLiquidacion.resumen.detalles.map((item) => {
-                            const packInfo = getPackMetrics({
-                              cantidadIngresada: item.cantidadIngresada,
-                              cantidadVendida: item.cantidadVendida,
-                              stockActual: item.stockActual,
-                              manejaPack: item.manejaPack,
-                              unidadesPorPack: item.unidadesPorPack,
-                              subtotalProveedor: item.subtotalPagar,
-                              costoUnitario: item.costoUnitario,
-                              costoPack: item.costoPack,
-                            });
-                            const ganancia = item.totalVendido - item.subtotalPagar;
-
-                            return (
-                              <tr
-                                key={item.productoId}
-                                className="rounded-2xl bg-slate-50"
-                              >
-                                <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">
-                                  {item.nombreProducto}
-                                </td>
-                                <td className="px-4 py-4 font-semibold text-brand-700">
-                                  {packInfo.vendidoConUnidades}
-                                </td>
-                                <td className="px-4 py-4 text-slate-700">
-                                  {packInfo.packsACobrar}
-                                </td>
-                                <td className="px-4 py-4 text-slate-700">
-                                  {packInfo.costoPackDisplay}
-                                </td>
-                                <td className="px-4 py-4 font-semibold text-slate-950">
-                                  {formatGs(item.subtotalPagar)}
-                                </td>
-                                <td className="px-4 py-4 text-slate-700">
-                                  {formatGs(item.totalVendido)}
-                                </td>
-                                <td className="px-4 py-4 font-semibold text-brand-700">
-                                  {formatGs(ganancia)}
-                                </td>
-                                <td className="rounded-r-2xl px-4 py-4 text-slate-700">
-                                  {packInfo.stockDisplay}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
                     </div>
 
                     <div className="mt-6 grid gap-3 rounded-[24px] bg-slate-950 p-5 text-white sm:grid-cols-3">
