@@ -276,7 +276,7 @@ type MovimientoInventario = {
   producto: ProductoVenta;
 };
 
-type ReportTabKey = "resumen" | "productos" | "ganancias";
+type ReportTabKey = "resumen" | "productos";
 
 type ProductoAnalisis = {
   productoId: number;
@@ -2019,7 +2019,6 @@ function MovimientosView() {
 const reportTabs: Array<{ key: ReportTabKey; label: string }> = [
   { key: "resumen", label: "Resumen" },
   { key: "productos", label: "Productos" },
-  { key: "ganancias", label: "Ganancias" },
 ];
 
 function formatPercent(value: number) {
@@ -2091,6 +2090,7 @@ function ReportesView() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [data, setData] = useState<ReportesData | null>(null);
+  const [deudaProveedores, setDeudaProveedores] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -2105,11 +2105,13 @@ function ReportesView() {
       if (endDate) params.set("end", endDate);
 
       const query = params.toString();
-      const response = await fetchJson<ReportesData>(
-        `/reportes${query ? `?${query}` : ""}`
-      );
+      const [response, dashboard] = await Promise.all([
+        fetchJson<ReportesData>(`/reportes${query ? `?${query}` : ""}`),
+        fetchJson<DashboardResumenResponse>("/dashboard/resumen"),
+      ]);
 
       setData(response);
+      setDeudaProveedores(dashboard.resumen.deudaProveedores);
     } catch (err) {
       console.error(err);
       setError("No se pudo cargar el analisis de reportes");
@@ -2122,17 +2124,10 @@ function ReportesView() {
     loadReport();
   }, [loadReport]);
 
-  const chartRows =
-    activeTab === "ganancias"
-      ? data?.ganancias.slice(0, 8) ?? []
-      : activeTab === "productos"
-      ? data?.productos.masVendidos.slice(0, 8) ?? []
-      : data?.productos.masRentables.slice(0, 8) ?? [];
+  const chartRows = data?.productos.masVendidos.slice(0, 8) ?? [];
 
   const maxChartValue = Math.max(
-    ...chartRows.map((item) =>
-      activeTab === "productos" ? item.cantidadVendida : item.gananciaTotal
-    ),
+    ...chartRows.map((item) => item.cantidadVendida),
     1
   );
 
@@ -2197,33 +2192,48 @@ function ReportesView() {
 
       {!loading && !error && data && activeTab === "resumen" && (
         <>
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard title="Total vendido" value={formatGs(data.resumen.totalVendido)} helper="Rango seleccionado" tone="brand" />
             <StatCard title="Ganancia total" value={formatGs(data.resumen.gananciaTotal)} helper="Venta menos costo proveedor" tone="green" />
-            <StatCard title="Ventas" value={String(data.resumen.cantidadVentas)} helper="Cantidad de tickets" tone="amber" />
-            <StatCard title="Ticket promedio" value={formatGs(data.resumen.ticketPromedio)} helper="Promedio del rango" tone="brand" />
+            <SecondaryStatCard title="Deuda proveedores" value={formatGs(deudaProveedores)} helper="Pendiente de liquidar" />
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Producto mas vendido</p>
-              <h3 className="mt-3 text-2xl font-bold text-slate-950">
-                {data.resumen.productoMasVendido?.nombre ?? "Sin ventas"}
-              </h3>
-              <p className="mt-2 text-sm text-slate-500">
-                {data.resumen.productoMasVendido ? `${data.resumen.productoMasVendido.cantidadVendida} unidades vendidas` : "No hay datos en este rango"}
-              </p>
+          <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
+            <div className="mb-5">
+              <h3 className="text-xl font-bold text-slate-950">Ganancias por producto</h3>
+              <p className="mt-1 text-sm text-slate-500">Producto | Vendido | Total vendido | Costo total | Ganancia total | Margen %</p>
             </div>
 
-            <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Producto mas rentable</p>
-              <h3 className="mt-3 text-2xl font-bold text-slate-950">
-                {data.resumen.productoMasRentable?.nombre ?? "Sin ventas"}
-              </h3>
-              <p className="mt-2 text-sm text-slate-500">
-                {data.resumen.productoMasRentable ? `${formatGs(data.resumen.productoMasRentable.gananciaTotal)} de ganancia` : "No hay datos en este rango"}
-              </p>
-            </div>
+            {data.ganancias.length === 0 ? (
+              <div className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No hay ventas en este rango.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] border-separate border-spacing-y-3">
+                  <thead>
+                    <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      <th className="pb-2">Producto</th>
+                      <th className="pb-2">Vendido</th>
+                      <th className="pb-2">Total vendido</th>
+                      <th className="pb-2">Costo total</th>
+                      <th className="pb-2">Ganancia total</th>
+                      <th className="pb-2">Margen %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.ganancias.map((item) => (
+                      <tr key={item.productoId} className="rounded-2xl bg-slate-50">
+                        <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">{item.nombre}</td>
+                        <td className="px-4 py-4 text-slate-700">{item.cantidadVendida} u.</td>
+                        <td className="px-4 py-4 text-slate-700">{formatGs(item.totalVendido)}</td>
+                        <td className="px-4 py-4 text-slate-700">{formatGs(item.costoTotal)}</td>
+                        <td className="px-4 py-4 font-semibold text-slate-950">{formatGs(item.gananciaTotal)}</td>
+                        <td className="rounded-r-2xl px-4 py-4 text-slate-700">{formatPercent(item.margen)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         </>
       )}
@@ -2267,46 +2277,6 @@ function ReportesView() {
         </>
       )}
 
-      {!loading && !error && data && activeTab === "ganancias" && (
-        <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
-          <div className="mb-5">
-            <h3 className="text-xl font-bold text-slate-950">Ganancias por producto</h3>
-            <p className="mt-1 text-sm text-slate-500">Producto | Vendido | Total vendido | Costo total | Ganancia total | Margen %</p>
-          </div>
-
-          {data.ganancias.length === 0 ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No hay ventas en este rango.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] border-separate border-spacing-y-3">
-                <thead>
-                  <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    <th className="pb-2">Producto</th>
-                    <th className="pb-2">Vendido</th>
-                    <th className="pb-2">Total vendido</th>
-                    <th className="pb-2">Costo total</th>
-                    <th className="pb-2">Ganancia total</th>
-                    <th className="pb-2">Margen %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.ganancias.map((item) => (
-                    <tr key={item.productoId} className="rounded-2xl bg-slate-50">
-                      <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">{item.nombre}</td>
-                      <td className="px-4 py-4 text-slate-700">{item.cantidadVendida} u.</td>
-                      <td className="px-4 py-4 text-slate-700">{formatGs(item.totalVendido)}</td>
-                      <td className="px-4 py-4 text-slate-700">{formatGs(item.costoTotal)}</td>
-                      <td className="px-4 py-4 font-semibold text-slate-950">{formatGs(item.gananciaTotal)}</td>
-                      <td className="rounded-r-2xl px-4 py-4 text-slate-700">{formatPercent(item.margen)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
-
       {!loading && !error && data && activeTab !== "resumen" && (
         <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-6">
           <h3 className="text-xl font-bold text-slate-950">Grafico simple</h3>
@@ -2315,7 +2285,7 @@ function ReportesView() {
               <div className="self-center text-sm text-slate-500">No hay datos para graficar.</div>
             ) : (
               chartRows.map((item) => {
-                const value = activeTab === "productos" ? item.cantidadVendida : item.gananciaTotal;
+                const value = item.cantidadVendida;
                 return (
                   <div key={item.productoId} className="flex h-full min-w-[84px] flex-col justify-end gap-3">
                     <div className="flex flex-1 items-end rounded-2xl bg-white p-2">
