@@ -4,6 +4,30 @@ import { calcularDeudaPendienteProveedor } from '../services/liquidaciones.servi
 
 const router = Router()
 
+async function setProveedorPredeterminado(id: number) {
+  return prisma.$transaction(async (tx) => {
+    await tx.proveedor.updateMany({
+      where: {
+        id: {
+          not: id,
+        },
+        predeterminado: true,
+      },
+      data: {
+        predeterminado: false,
+      },
+    })
+
+    return tx.proveedor.update({
+      where: { id },
+      data: {
+        activo: true,
+        predeterminado: true,
+      },
+    })
+  })
+}
+
 router.get('/', async (_req, res) => {
   try {
     const proveedores = await prisma.proveedor.findMany({
@@ -33,6 +57,31 @@ router.get('/', async (_req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Error al obtener proveedores' })
+  }
+})
+
+router.get('/predeterminado/activo', async (_req, res) => {
+  try {
+    const proveedor = await prisma.proveedor.findFirst({
+      where: {
+        activo: true,
+        predeterminado: true,
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    })
+
+    if (!proveedor) {
+      return res.status(404).json({
+        error: 'No hay proveedor predeterminado activo configurado',
+      })
+    }
+
+    res.json(proveedor)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Error al obtener proveedor predeterminado' })
   }
 })
 
@@ -91,7 +140,7 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { nombre, telefono, activo } = req.body
+    const { nombre, telefono, activo, predeterminado } = req.body
 
     if (!nombre || typeof nombre !== 'string') {
       return res.status(400).json({
@@ -104,8 +153,13 @@ router.post('/', async (req, res) => {
         nombre: nombre.trim(),
         telefono: telefono ? String(telefono).trim() : null,
         activo: activo !== undefined ? Boolean(activo) : true,
+        predeterminado: false,
       },
     })
+
+    if (predeterminado === true) {
+      return res.status(201).json(await setProveedorPredeterminado(proveedor.id))
+    }
 
     res.status(201).json(proveedor)
   } catch (error) {
@@ -124,7 +178,7 @@ router.put('/:id', async (req, res) => {
       })
     }
 
-    const { nombre, telefono, activo } = req.body
+    const { nombre, telefono, activo, predeterminado } = req.body
 
     const proveedorExistente = await prisma.proveedor.findUnique({
       where: { id },
@@ -142,8 +196,13 @@ router.put('/:id', async (req, res) => {
         nombre: nombre !== undefined ? String(nombre).trim() : undefined,
         telefono: telefono !== undefined ? String(telefono).trim() : undefined,
         activo: activo !== undefined ? Boolean(activo) : undefined,
+        predeterminado: predeterminado === false ? false : undefined,
       },
     })
+
+    if (predeterminado === true) {
+      return res.json(await setProveedorPredeterminado(id))
+    }
 
     res.json(proveedorActualizado)
   } catch (error) {

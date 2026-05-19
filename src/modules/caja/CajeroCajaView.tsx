@@ -214,14 +214,14 @@ export function CajeroCajaView() {
       {cierreResumen && (
         <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
           <h3 className="text-xl font-bold text-slate-950">Resumen de cierre</h3>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl bg-slate-50 p-4"><p className="text-sm text-slate-500">Esperado efectivo</p><p className="mt-2 text-xl font-bold">{formatGs(cierreResumen.totalEsperado)}</p></div>
-            <div className="rounded-2xl bg-slate-50 p-4"><p className="text-sm text-slate-500">Contado</p><p className="mt-2 text-xl font-bold">{formatGs(cierreResumen.montoFinal)}</p></div>
-            <div className={`rounded-2xl p-4 ${cierreResumen.diferencia === 0 ? "bg-brand-50 text-brand-700" : cierreResumen.diferencia < 0 ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
-              <p className="text-sm">Diferencia</p>
-              <p className="mt-2 text-xl font-bold">{formatGs(cierreResumen.diferencia)}</p>
+          <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div className="min-h-[112px] rounded-2xl bg-slate-50 p-3 sm:p-4"><p className="text-xs text-slate-500 sm:text-sm">Esperado efectivo</p><p className="mt-2 break-words text-lg font-bold sm:text-xl">{formatGs(cierreResumen.totalEsperado)}</p></div>
+            <div className="min-h-[112px] rounded-2xl bg-slate-50 p-3 sm:p-4"><p className="text-xs text-slate-500 sm:text-sm">Contado</p><p className="mt-2 break-words text-lg font-bold sm:text-xl">{formatGs(cierreResumen.montoFinal)}</p></div>
+            <div className={`min-h-[112px] rounded-2xl p-3 sm:p-4 ${cierreResumen.diferencia === 0 ? "bg-brand-50 text-brand-700" : cierreResumen.diferencia < 0 ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
+              <p className="text-xs sm:text-sm">Diferencia</p>
+              <p className="mt-2 break-words text-lg font-bold sm:text-xl">{formatGs(cierreResumen.diferencia)}</p>
             </div>
-            <div className="rounded-2xl bg-slate-50 p-4"><p className="text-sm text-slate-500">Estado</p><p className="mt-2 text-xl font-bold">{cierreResumen.diferencia === 0 ? "Correcto" : cierreResumen.diferencia < 0 ? "Faltante" : "Sobrante"}</p></div>
+            <div className="min-h-[112px] rounded-2xl bg-slate-50 p-3 sm:p-4"><p className="text-xs text-slate-500 sm:text-sm">Estado</p><p className="mt-2 text-lg font-bold sm:text-xl">{cierreResumen.diferencia === 0 ? "Correcto" : cierreResumen.diferencia < 0 ? "Faltante" : "Sobrante"}</p></div>
           </div>
         </section>
       )}

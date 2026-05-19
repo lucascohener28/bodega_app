@@ -48,10 +48,12 @@ function DifferenceBadge({ value }: { value?: number | null }) {
 
 function SummaryCard({ label, value, helper }: { label: string; value: string; helper?: string }) {
   return (
-    <article className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <h3 className="mt-3 text-xl font-bold text-slate-950">{value}</h3>
-      {helper && <p className="mt-1 text-sm text-slate-500">{helper}</p>}
+    <article className="flex min-h-[112px] flex-col justify-between rounded-[20px] border border-slate-200 bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 sm:text-xs sm:tracking-[0.16em]">{label}</p>
+      <div className="mt-3">
+        <h3 className="break-words text-lg font-bold text-slate-950 sm:text-xl">{value}</h3>
+        {helper && <p className="mt-1 text-xs text-slate-500 sm:text-sm">{helper}</p>}
+      </div>
     </article>
   );
 }
@@ -186,16 +188,12 @@ export function AdminCajaView() {
       {error && <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       {success && <div className="rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">{success}</div>}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <SummaryCard label="Estado" value={caja?.estado || "CERRADA"} helper={cajaAbierta ? "Caja operativa" : "Sin caja abierta"} />
         <SummaryCard label="Monto inicial" value={formatGs(caja?.montoInicial)} helper={caja?.abiertaPor?.nombre || "Sin responsable"} />
         <SummaryCard label="Efectivo" value={formatGs(resumen?.ventasEfectivo)} helper="Ventas del día" />
-        <SummaryCard label="QR" value={formatGs(resumen?.ventasQR)} helper="Ventas del día" />
-        <SummaryCard label="Transferencia" value={formatGs(resumen?.ventasTransferencia)} helper="Ventas del día" />
-        <SummaryCard label="Mixto" value={formatGs(resumen?.ventasMixto)} helper="Ventas del día" />
         <SummaryCard label="Esperado" value={formatGs(resumen?.totalEsperado)} helper="Efectivo esperado" />
         <SummaryCard label="Ingresos" value={formatGs(resumen?.ingresosCaja)} helper="Movimientos manuales" />
-        <SummaryCard label="Egresos/retiros" value={formatGs((resumen?.egresosCaja || 0) + (resumen?.retirosCaja || 0))} helper="Salidas manuales" />
         <SummaryCard label="Apertura" value={formatDateTime(caja?.abiertaEn)} helper={caja?.abiertaPor?.username || "-"} />
       </section>
 
@@ -254,10 +252,8 @@ export function AdminCajaView() {
               <p><strong>Monto inicial:</strong> {formatGs(caja?.montoInicial)}</p>
               <p><strong>Movimientos:</strong> {caja?.movimientos?.length || 0}</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3">
               <SummaryCard label="Efectivo" value={formatGs(resumen?.ventasEfectivo)} />
-              <SummaryCard label="QR" value={formatGs(resumen?.ventasQR)} />
-              <SummaryCard label="Transferencia" value={formatGs(resumen?.ventasTransferencia)} />
               <SummaryCard label="Esperado" value={formatGs(resumen?.totalEsperado)} />
             </div>
           </div>
@@ -267,7 +263,7 @@ export function AdminCajaView() {
       {cierreResumen && (
         <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
           <h3 className="text-xl font-bold text-slate-950">Último cierre</h3>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
             <SummaryCard label="Esperado" value={formatGs(cierreResumen.totalEsperado)} />
             <SummaryCard label="Contado" value={formatGs(cierreResumen.montoFinal)} />
             <div className="rounded-[22px] border border-slate-200 bg-white p-4">
@@ -351,7 +347,7 @@ export function AdminCajaView() {
               <button onClick={() => setDetalle(null)} className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold">Cerrar</button>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
               <SummaryCard label="Inicial" value={formatGs(detalle.caja.montoInicial)} />
               <SummaryCard label="Final" value={formatGs(detalle.caja.montoFinal)} />
               <SummaryCard label="Esperado" value={formatGs(detalle.resumen.totalEsperado)} />

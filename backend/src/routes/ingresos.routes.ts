@@ -69,21 +69,39 @@ router.post('/', async (req, res) => {
   try {
     const { proveedorId, tipoIngreso, observacion, detalles } = req.body
 
-    if (!proveedorId || !tipoIngreso || !Array.isArray(detalles) || detalles.length === 0) {
+    if (!tipoIngreso || !Array.isArray(detalles) || detalles.length === 0) {
       return res.status(400).json({
         error: 'Datos incompletos para registrar el ingreso',
       })
     }
 
-    const proveedor = await prisma.proveedor.findUnique({
-      where: {
-        id: Number(proveedorId),
-      },
-    })
+    const proveedor = proveedorId
+      ? await prisma.proveedor.findUnique({
+          where: {
+            id: Number(proveedorId),
+          },
+        })
+      : await prisma.proveedor.findFirst({
+          where: {
+            activo: true,
+            predeterminado: true,
+          },
+          orderBy: {
+            id: 'asc',
+          },
+        })
 
     if (!proveedor) {
-      return res.status(404).json({
-        error: 'Proveedor no encontrado',
+      return res.status(400).json({
+        error: proveedorId
+          ? 'Proveedor no encontrado'
+          : 'No hay proveedor predeterminado activo configurado',
+      })
+    }
+
+    if (!proveedor.activo) {
+      return res.status(400).json({
+        error: 'El proveedor seleccionado no está activo',
       })
     }
 
@@ -114,7 +132,7 @@ router.post('/', async (req, res) => {
     const ingreso = await prisma.$transaction(async (tx) => {
       const nuevoIngreso = await tx.ingresoMercaderia.create({
         data: {
-          proveedorId: Number(proveedorId),
+          proveedorId: proveedor.id,
           tipoIngreso,
           observacion: observacion ? String(observacion).trim() : null,
         },

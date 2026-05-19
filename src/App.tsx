@@ -5,7 +5,6 @@ import {
   Bell,
   Boxes,
   ChevronDown,
-  ClipboardList,
   CreditCard,
   FileBarChart2,
   LayoutDashboard,
@@ -66,6 +65,8 @@ type NavItem = {
 type ProveedorOption = {
   id: number;
   nombre: string;
+  activo?: boolean;
+  predeterminado?: boolean;
 };
 
 type IngresoItemForm = {
@@ -328,6 +329,19 @@ type ReportesData = {
   ganancias: ProductoAnalisis[];
 };
 
+type DashboardRecentSale = {
+  id: number;
+  fecha: string;
+  total: number;
+  metodoPago: string;
+  detalles: Array<{
+    cantidad: number;
+    producto: {
+      nombre: string;
+    };
+  }>;
+};
+
 function formatGs(value: number) {
   const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
 
@@ -368,6 +382,48 @@ function formatPackBreakdown(unidades: number, unidadesPorPack: number | null) {
   }
 
   return `${packsCompletos} pack${packsCompletos === 1 ? "" : "s"} + ${unidadesSueltas} u.`;
+}
+
+function formatStockDisplay(unidades: number, unidadesPorPack: number | null | undefined) {
+  const totalUnits = Number(unidades) || 0;
+  const unitsPerPack = Number(unidadesPorPack);
+
+  if (!Number.isFinite(unitsPerPack) || unitsPerPack <= 0) {
+    return `${totalUnits} ${totalUnits === 1 ? "unidad" : "unidades"}`;
+  }
+
+  const fullPacks = Math.floor(totalUnits / unitsPerPack);
+  const looseUnits = totalUnits % unitsPerPack;
+  const packLabel = `${fullPacks} pack${fullPacks === 1 ? "" : "s"}`;
+  const unitLabel = `${looseUnits} ${looseUnits === 1 ? "unidad" : "unidades"}`;
+
+  if (fullPacks > 0 && looseUnits > 0) return `${packLabel} + ${unitLabel}`;
+  if (fullPacks > 0) return packLabel;
+  return `${totalUnits} ${totalUnits === 1 ? "unidad" : "unidades"}`;
+}
+
+function getStockStatus(currentStock: number, minStock: number) {
+  if (currentStock <= Math.floor(minStock * 0.7)) {
+    return {
+      label: "Crítico",
+      value: "CRITICO",
+      className: "bg-red-100 text-red-700",
+    };
+  }
+
+  if (currentStock <= minStock) {
+    return {
+      label: "Bajo",
+      value: "BAJO",
+      className: "bg-amber-100 text-amber-700",
+    };
+  }
+
+  return {
+    label: "Óptimo",
+    value: "OPTIMO",
+    className: "bg-brand-100 text-brand-700",
+  };
 }
 
 function getPackUnits(manejaPack: boolean, unidadesPorPack: string | number | null | undefined) {
@@ -436,7 +492,6 @@ const navigation: NavItem[] = [
   { key: "ventas", label: "Ventas", icon: ShoppingCart },
   { key: "productos", label: "Productos", icon: Package },
   { key: "categorias", label: "Categorías", icon: Boxes },
-  { key: "stock", label: "Stock", icon: ClipboardList },
   { key: "movimientos", label: "Movimientos", icon: FileBarChart2 },
   { key: "caja", label: "Caja", icon: Wallet },
   { key: "ingresos", label: "Ingresos de mercadería", icon: Truck },
@@ -450,7 +505,7 @@ const navigation: NavItem[] = [
 function getVisibleNavigation(user: AuthUser) {
   if (user.rol === "ADMIN") return navigation;
   return navigation.filter((item) =>
-    ["dashboard", "ventas", "caja", "stock", "movimientos"].includes(item.key)
+    ["dashboard", "ventas", "productos", "caja", "movimientos"].includes(item.key)
   );
 }
 
@@ -822,6 +877,7 @@ function SecondaryStatCard({
 
 function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void }) {
   const [data, setData] = useState<DashboardResumenResponse | null>(null);
+  const [recentSalesToday, setRecentSalesToday] = useState<DashboardRecentSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -830,8 +886,23 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
       try {
         setLoading(true);
         setError(null);
-        const response = await fetchJson<DashboardResumenResponse>("/dashboard/resumen");
+        const [response, ventas] = await Promise.all([
+          fetchJson<DashboardResumenResponse>("/dashboard/resumen"),
+          fetchJson<DashboardRecentSale[]>("/ventas").catch(() => []),
+        ]);
+        const today = new Date();
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+        const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).getTime();
+        const ventasDelDia = ventas
+          .filter((venta) => {
+            const timestamp = new Date(venta.fecha).getTime();
+            return timestamp >= startOfDay && timestamp <= endOfDay;
+          })
+          .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+          .slice(0, 6);
+
         setData(response);
+        setRecentSalesToday(ventasDelDia);
       } catch (err) {
         console.error(err);
         setError("No se pudo cargar el dashboard");
@@ -868,20 +939,18 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
     alertas,
     productosMasVendidos,
     productosMasRentables,
-    productosMejorRotacion,
-    ultimasVentas,
-    ultimosMovimientos,
-    ultimosIngresos,
-    ultimasLiquidaciones,
   } = data;
 
-  const quickActions: Array<{ label: string; target: ModuleKey }> = [
-    { label: "Nueva venta", target: "ventas" },
-    { label: "Nuevo ingreso", target: "ingresos" },
-    { label: "Ver stock", target: "stock" },
-    { label: "Ver reportes", target: "reportes" },
-    { label: "Liquidaciones", target: "liquidaciones" },
-  ];
+  const formatSaleTime = (value: string) =>
+    new Date(value).toLocaleTimeString("es-PY", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const summarizeSaleProducts = (sale: DashboardRecentSale) => {
+    const products = sale.detalles.map((detalle) => `${detalle.cantidad} ${detalle.producto.nombre}`);
+    return products.length > 0 ? products.join(" + ") : "Sin detalle de productos";
+  };
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -907,8 +976,6 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <SecondaryStatCard title="Cantidad ventas" value={String(resumen.cantidadVentasHoy)} helper={`${resumen.cantidadVentasMes} en el mes`} />
-        <SecondaryStatCard title="Ticket promedio" value={formatGs(resumen.ticketPromedioHoy)} helper="Promedio de hoy" />
         <SecondaryStatCard title="Deuda proveedores" value={formatGs(resumen.deudaProveedores)} helper="Pendiente de liquidar" />
         <SecondaryStatCard title="Stock critico" value={`${resumen.cantidadProductosBajoStock}`} helper="Productos a revisar" />
       </section>
@@ -945,7 +1012,7 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
         )}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-3">
+      <section className="grid gap-4 xl:grid-cols-2">
         <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
           <h3 className="text-xl font-bold text-slate-950">Mas vendidos</h3>
           <div className="mt-4 space-y-3">
@@ -980,71 +1047,33 @@ function DashboardView({ onNavigate }: { onNavigate: (key: ModuleKey) => void })
             {productosMasRentables.length === 0 && <p className="text-sm text-slate-500">Sin datos de rentabilidad.</p>}
           </div>
         </div>
-
-        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
-          <h3 className="text-xl font-bold text-slate-950">Mejor rotación</h3>
-          <div className="mt-4 space-y-3">
-            {productosMejorRotacion.slice(0, 5).map((item) => (
-              <div key={item.productoId} className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="font-semibold text-slate-900">{item.nombre}</p>
-                <p className="mt-1 text-sm text-slate-500">{item.cantidadVendida} unidades · {formatGs(item.totalVendido)}</p>
-              </div>
-            ))}
-            {productosMejorRotacion.length === 0 && <p className="text-sm text-slate-500">Sin rotación registrada.</p>}
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
-          <h3 className="text-xl font-bold text-slate-950">Ventas recientes</h3>
-          <div className="mt-4 space-y-3">
-            {ultimasVentas.map((sale) => (
-              <div key={sale.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
-                <div>
-                  <p className="font-semibold text-slate-900">Venta #{sale.id}</p>
-                  <p className="text-sm text-slate-500">{formatDateTime(sale.fecha)} · {sale.metodoPago}</p>
-                </div>
-                <p className="font-bold text-slate-950">{formatGs(sale.total)}</p>
-              </div>
-            ))}
-            {ultimasVentas.length === 0 && <p className="text-sm text-slate-500">Sin ventas recientes.</p>}
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
-          <h3 className="text-xl font-bold text-slate-950">Actividad reciente</h3>
-          <div className="mt-4 space-y-3">
-            {ultimosMovimientos.slice(0, 3).map((item) => (
-              <div key={`mov-${item.id}`} className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="font-semibold text-slate-900">{item.tipoMovimiento} · {item.producto.nombre}</p>
-                <p className="text-sm text-slate-500">{item.cantidad} u. · {formatDateTime(item.createdAt)}</p>
-              </div>
-            ))}
-            {ultimosIngresos.slice(0, 2).map((item) => (
-              <div key={`ing-${item.id}`} className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="font-semibold text-slate-900">Ingreso #{item.id}</p>
-                <p className="text-sm text-slate-500">{item.proveedor.nombre} · {formatDateTime(item.fecha)}</p>
-              </div>
-            ))}
-            {ultimasLiquidaciones.slice(0, 2).map((item) => (
-              <div key={`liq-${item.id}`} className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="font-semibold text-slate-900">Liquidación #{item.id}</p>
-                <p className="text-sm text-slate-500">{item.proveedor.nombre} · {formatGs(item.totalPagar)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
       </section>
 
       <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
-        <h3 className="text-xl font-bold text-slate-950">Accesos rápidos</h3>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {quickActions.map((action) => (
-            <button key={action.target} onClick={() => onNavigate(action.target)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white hover:text-brand-700">
-              {action.label}
-            </button>
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-slate-950">Ventas recientes de hoy</h3>
+            <p className="mt-1 text-sm text-slate-500">Ultimas ventas registradas durante el dia.</p>
+          </div>
+        </div>
+        <div className="mt-4 space-y-3">
+          {recentSalesToday.map((sale) => (
+            <div key={sale.id} className="rounded-2xl bg-slate-50 px-4 py-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-900">Venta #{sale.id}</p>
+                  <p className="mt-1 line-clamp-2 text-sm text-slate-500">{summarizeSaleProducts(sale)}</p>
+                </div>
+                <div className="shrink-0 text-left sm:text-right">
+                  <p className="font-bold text-slate-950">{formatGs(sale.total)}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {sale.metodoPago || "Sin metodo"} · {formatSaleTime(sale.fecha)}
+                  </p>
+                </div>
+              </div>
+            </div>
           ))}
+          {recentSalesToday.length === 0 && <p className="text-sm text-slate-500">Sin ventas registradas hoy.</p>}
         </div>
       </section>
     </div>
@@ -1662,6 +1691,8 @@ function SalesView() {
           </div>
         </div>
       )}
+
+
     </div>
   );
 }
@@ -3407,6 +3438,7 @@ function ProductsView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("TODAS");
   const [selectedStatus, setSelectedStatus] = useState("TODOS");
+  const [selectedStockStatus, setSelectedStockStatus] = useState("TODOS");
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creatingProduct, setCreatingProduct] = useState(false);
@@ -3418,6 +3450,13 @@ function ProductsView() {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [updateSuccess, setUpdateSuccess] = useState<string | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [adjustingProduct, setAdjustingProduct] = useState<ProductoVenta | null>(null);
+  const [adjustType, setAdjustType] = useState<"SUMAR" | "RESTAR" | "FIJAR">("SUMAR");
+  const [adjustQuantity, setAdjustQuantity] = useState("");
+  const [adjustReason, setAdjustReason] = useState("");
+  const [adjustingStock, setAdjustingStock] = useState(false);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
 
   const [newProduct, setNewProduct] = useState({
     nombre: "",
@@ -3478,6 +3517,16 @@ function ProductsView() {
     ...Array.from(new Set(products.map((product) => product.categoria.nombre))),
   ];
 
+  const criticalStockCount = products.filter(
+    (product) => getStockStatus(product.stockActual, product.stockMinimo).value === "CRITICO"
+  ).length;
+
+  const lowStockCount = products.filter(
+    (product) => getStockStatus(product.stockActual, product.stockMinimo).value === "BAJO"
+  ).length;
+
+  const stockUnitsTotal = products.reduce((acc, product) => acc + product.stockActual, 0);
+
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
       product.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -3492,7 +3541,11 @@ function ProductsView() {
       (selectedStatus === "ACTIVO" && product.activo) ||
       (selectedStatus === "INACTIVO" && !product.activo);
 
-    return matchesSearch && matchesCategory && matchesStatus;
+    const stockStatus = getStockStatus(product.stockActual, product.stockMinimo);
+    const matchesStockStatus =
+      selectedStockStatus === "TODOS" || stockStatus.value === selectedStockStatus;
+
+    return matchesSearch && matchesCategory && matchesStatus && matchesStockStatus;
   });
 
   async function handleCreateProduct() {
@@ -3678,6 +3731,66 @@ function ProductsView() {
     }
   }
 
+  function openAdjustStockModal(product: ProductoVenta) {
+    setAdjustingProduct(product);
+    setAdjustType("SUMAR");
+    setAdjustQuantity("");
+    setAdjustReason("");
+    setAdjustError(null);
+    setAdjustModalOpen(true);
+  }
+
+  function closeAdjustStockModal() {
+    setAdjustModalOpen(false);
+    setAdjustingProduct(null);
+    setAdjustType("SUMAR");
+    setAdjustQuantity("");
+    setAdjustReason("");
+    setAdjustError(null);
+  }
+
+  async function handleConfirmAdjustStock() {
+    try {
+      if (!adjustingProduct) return;
+
+      const cantidad = Number(adjustQuantity);
+
+      if (isNaN(cantidad) || cantidad < 0) {
+        setAdjustError("Ingresa una cantidad válida");
+        return;
+      }
+
+      setAdjustingStock(true);
+      setAdjustError(null);
+
+      const response = await apiFetch(`/productos/${adjustingProduct.id}/ajustar-stock`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tipoAjuste: adjustType,
+          cantidad,
+          observacion: adjustReason,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo ajustar el stock");
+      }
+
+      setProducts((prev) => prev.map((item) => (item.id === data.id ? data : item)));
+      closeAdjustStockModal();
+    } catch (err) {
+      console.error(err);
+      setAdjustError(err instanceof Error ? err.message : "No se pudo ajustar el stock");
+    } finally {
+      setAdjustingStock(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -3705,6 +3818,13 @@ function ProductsView() {
     {showCreateForm ? "Cerrar formulario" : "Nuevo producto"}
   </button>
 </section>
+
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <SecondaryStatCard title="Productos" value={String(products.length)} helper="Catálogo cargado" />
+        <SecondaryStatCard title="Stock crítico" value={String(criticalStockCount)} helper="Requiere reposición" />
+        <SecondaryStatCard title="Stock bajo" value={String(lowStockCount)} helper="Atención próxima" />
+        <SecondaryStatCard title="Unidades internas" value={String(stockUnitsTotal)} helper="Base del sistema" />
+      </section>
 
       {showCreateForm && (
     <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">          <div className="mb-6">
@@ -3939,6 +4059,17 @@ function ProductsView() {
               <option value="ACTIVO">Activos</option>
               <option value="INACTIVO">Inactivos</option>
             </select>
+
+            <select
+              value={selectedStockStatus}
+              onChange={(e) => setSelectedStockStatus(e.target.value)}
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600 outline-none focus:border-brand-300 focus:bg-white"
+            >
+              <option value="TODOS">Todo el stock</option>
+              <option value="CRITICO">Stock crítico</option>
+              <option value="BAJO">Stock bajo</option>
+              <option value="OPTIMO">Stock óptimo</option>
+            </select>
           </div>
 
           <span className="text-sm font-medium text-slate-500">
@@ -3968,6 +4099,7 @@ function ProductsView() {
       <div className="space-y-3 md:hidden">
         {filteredProducts.map((product) => {
           const lowStock = product.stockActual <= product.stockMinimo;
+          const stockStatus = getStockStatus(product.stockActual, product.stockMinimo);
 
       return (
         <div
@@ -3981,13 +4113,9 @@ function ProductsView() {
             </div>
 
             <span
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                product.activo
-                  ? "bg-brand-100 text-brand-700"
-                  : "bg-slate-200 text-slate-700"
-              }`}
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${stockStatus.className}`}
             >
-              {product.activo ? "Activo" : "Inactivo"}
+              {stockStatus.label}
             </span>
           </div>
 
@@ -4035,15 +4163,18 @@ function ProductsView() {
                   lowStock ? "text-red-600" : "text-slate-900"
                 }`}
               >
-                {product.stockActual}
+                {formatStockDisplay(product.stockActual, product.manejaPack ? product.unidadesPorPack : null)}
               </p>
+              <p className="mt-0.5 text-xs text-slate-500">{product.stockActual} unidades internas</p>
             </div>
 
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                 Mínimo
               </p>
-              <p className="mt-1 text-slate-700">{product.stockMinimo}</p>
+              <p className="mt-1 text-slate-700">
+                {formatStockDisplay(product.stockMinimo, product.manejaPack ? product.unidadesPorPack : null)}
+              </p>
             </div>
 
             <div className="col-span-2">
@@ -4056,14 +4187,26 @@ function ProductsView() {
                   : "No maneja pack"}
               </p>
             </div>
+            <div className="col-span-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Estado producto
+              </p>
+              <p className="mt-1 text-slate-700">{product.activo ? "Activo" : "Inactivo"}</p>
+            </div>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 grid grid-cols-2 gap-2">
             <button
               onClick={() => openEditForm(product)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Editar
+            </button>
+            <button
+              onClick={() => openAdjustStockModal(product)}
+              className="rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-700"
+            >
+              Ajustar stock
             </button>
           </div>
         </div>
@@ -4084,8 +4227,9 @@ function ProductsView() {
               <th className="pb-2">Costo proveedor</th>
               <th className="pb-2">Stock</th>
               <th className="pb-2">Mínimo</th>
+              <th className="pb-2">Estado stock</th>
               <th className="pb-2">Pack</th>
-              <th className="pb-2">Estado</th>
+              <th className="pb-2">Producto</th>
               <th className="pb-2">Acción</th>
             </tr>
           </thead>
@@ -4093,6 +4237,7 @@ function ProductsView() {
           <tbody>
             {filteredProducts.map((product) => {
               const lowStock = product.stockActual <= product.stockMinimo;
+              const stockStatus = getStockStatus(product.stockActual, product.stockMinimo);
 
               return (
                 <tr key={product.id} className="rounded-2xl bg-slate-50">
@@ -4128,11 +4273,20 @@ function ProductsView() {
                       lowStock ? "text-red-600" : "text-slate-900"
                     }`}
                   >
-                    {product.stockActual}
+                    <div>
+                      <p>{formatStockDisplay(product.stockActual, product.manejaPack ? product.unidadesPorPack : null)}</p>
+                      <p className="mt-1 text-xs font-normal text-slate-500">{product.stockActual} unidades internas</p>
+                    </div>
                   </td>
 
                   <td className="px-4 py-4 text-slate-600">
-                    {product.stockMinimo}
+                    {formatStockDisplay(product.stockMinimo, product.manejaPack ? product.unidadesPorPack : null)}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${stockStatus.className}`}>
+                      {stockStatus.label}
+                    </span>
                   </td>
 
                   <td className="px-4 py-4 text-slate-600">
@@ -4160,6 +4314,12 @@ function ProductsView() {
                         className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                       >
                         Editar
+                      </button>
+                      <button
+                        onClick={() => openAdjustStockModal(product)}
+                        className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+                      >
+                        Ajustar stock
                       </button>
                     </div>
                   </td>
@@ -4404,18 +4564,145 @@ function ProductsView() {
           </div>
         </div>
       )}
+      {adjustModalOpen && adjustingProduct && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-4">
+          <div className="absolute inset-0" onClick={closeAdjustStockModal} />
+
+          <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-white p-4 shadow-2xl sm:max-w-2xl sm:rounded-[32px] sm:p-6">
+            <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-slate-200 sm:hidden" />
+
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-brand-600">
+                  Stock del producto
+                </p>
+                <h3 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
+                  Ajustar inventario
+                </h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  {adjustingProduct.nombre} · Stock actual:{" "}
+                  <span className="font-semibold text-slate-900">
+                    {formatStockDisplay(
+                      adjustingProduct.stockActual,
+                      adjustingProduct.manejaPack ? adjustingProduct.unidadesPorPack : null
+                    )}
+                  </span>
+                </p>
+              </div>
+
+              <button
+                onClick={closeAdjustStockModal}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Tipo de ajuste
+                </label>
+                <select
+                  value={adjustType}
+                  onChange={(e) => setAdjustType(e.target.value as "SUMAR" | "RESTAR" | "FIJAR")}
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-brand-300 focus:bg-white"
+                >
+                  <option value="SUMAR">Sumar stock</option>
+                  <option value="RESTAR">Restar stock</option>
+                  <option value="FIJAR">Fijar stock exacto</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Cantidad en unidades internas
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={adjustQuantity}
+                  onChange={(e) => setAdjustQuantity(e.target.value)}
+                  placeholder={adjustType === "FIJAR" ? "Ej.: 25" : adjustType === "SUMAR" ? "Ej.: 5" : "Ej.: 3"}
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Motivo
+                </label>
+                <textarea
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  placeholder="Ej.: diferencia en conteo, rotura, merma, corrección manual..."
+                  className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:bg-white"
+                />
+              </div>
+            </div>
+
+            {adjustError && (
+              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {adjustError}
+              </div>
+            )}
+
+            <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
+                Resultado estimado
+              </p>
+              <h3 className="mt-2 text-3xl font-bold tracking-tight">
+                {(() => {
+                  const cantidad = Number(adjustQuantity) || 0;
+                  const result =
+                    adjustType === "SUMAR"
+                      ? adjustingProduct.stockActual + cantidad
+                      : adjustType === "RESTAR"
+                        ? Math.max(adjustingProduct.stockActual - cantidad, 0)
+                        : cantidad;
+
+                  return formatStockDisplay(
+                    result,
+                    adjustingProduct.manejaPack ? adjustingProduct.unidadesPorPack : null
+                  );
+                })()}
+              </h3>
+              <p className="mt-2 text-sm text-slate-400">
+                El sistema sigue guardando el stock en unidades internas.
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:flex">
+              <button
+                onClick={handleConfirmAdjustStock}
+                disabled={adjustingStock}
+                className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {adjustingStock ? "Guardando ajuste..." : "Confirmar ajuste"}
+              </button>
+
+              <button
+                onClick={closeAdjustStockModal}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
 
 
 function IngresosView() {
-  const [providers, setProviders] = useState<ProveedorOption[]>([]);
+  const [defaultProvider, setDefaultProvider] = useState<ProveedorOption | null>(null);
   const [products, setProducts] = useState<ProductoVenta[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [errorData, setErrorData] = useState<string | null>(null);
 
-  const [providerId, setProviderId] = useState<number | "">("");
   const [tipoIngreso, setTipoIngreso] = useState("CONSIGNACION");
   const [observacion, setObservacion] = useState("");
   const [items, setItems] = useState<IngresoItemForm[]>([
@@ -4437,16 +4724,17 @@ function IngresosView() {
         setLoadingData(true);
         setErrorData(null);
 
-        const [providersResponse, productsResponse] = await Promise.all([
-          fetchJson<ProveedorOption[]>("/proveedores"),
+        const [defaultProviderResponse, productsResponse] = await Promise.all([
+          fetchJson<ProveedorOption>("/proveedores/predeterminado/activo"),
           fetchJson<ProductoVenta[]>("/productos"),
         ]);
 
-        setProviders(providersResponse);
+        setDefaultProvider(defaultProviderResponse);
         setProducts(productsResponse);
       } catch (err) {
         console.error(err);
-        setErrorData("No se pudieron cargar proveedores y productos");
+        setDefaultProvider(null);
+        setErrorData("No se pudo cargar el proveedor predeterminado y los productos");
       } finally {
         setLoadingData(false);
       }
@@ -4513,8 +4801,8 @@ function IngresosView() {
 
   async function handleSaveIngreso() {
     try {
-      if (!providerId) {
-        setIngresoError("Selecciona un proveedor");
+      if (!defaultProvider) {
+        setIngresoError("No hay proveedor predeterminado activo configurado");
         setIngresoSuccess(null);
         return;
       }
@@ -4542,7 +4830,6 @@ function IngresosView() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          proveedorId: providerId,
           tipoIngreso,
           observacion,
           detalles: detallesValidos.map((item) => ({
@@ -4559,7 +4846,6 @@ function IngresosView() {
         throw new Error(data.error || "No se pudo registrar el ingreso");
       }
 
-      setProviderId("");
       setTipoIngreso("CONSIGNACION");
       setObservacion("");
       setItems([
@@ -4586,8 +4872,8 @@ function IngresosView() {
     return acc + subtotal;
   }, 0);
 
-  const validProductsForProvider = providerId
-    ? products.filter((product) => product.proveedor?.id === Number(providerId))
+  const validProductsForProvider = defaultProvider
+    ? products.filter((product) => product.proveedor?.id === defaultProvider.id)
     : [];
 
   return (
@@ -4643,20 +4929,14 @@ function IngresosView() {
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Proveedor
               </label>
-              <select
-                value={providerId}
-                onChange={(e) =>
-                  setProviderId(e.target.value ? Number(e.target.value) : "")
-                }
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-brand-300 focus:bg-white"
-              >
-                <option value="">Seleccionar proveedor</option>
-                {providers.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.nombre}
-                  </option>
-                ))}
-              </select>
+              <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600">
+                  Proveedor predeterminado
+                </p>
+                <p className="mt-2 text-lg font-bold text-slate-950">
+                  {defaultProvider?.nombre ?? "Sin proveedor configurado"}
+                </p>
+              </div>
             </div>
 
             <div>
@@ -4700,7 +4980,7 @@ function IngresosView() {
             <div className="grid gap-3">
               <button
                 onClick={handleSaveIngreso}
-                disabled={submittingIngreso}
+                disabled={submittingIngreso || !defaultProvider}
                 className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submittingIngreso ? "Confirmando..." : "Confirmar ingreso"}
@@ -4708,7 +4988,6 @@ function IngresosView() {
 
               <button
                 onClick={() => {
-                  setProviderId("");
                   setTipoIngreso("CONSIGNACION");
                   setObservacion("");
                   setItems([
@@ -4749,9 +5028,9 @@ function IngresosView() {
             </button>
           </div>
 
-          {!providerId && (
+          {!defaultProvider && (
             <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-700">
-              Selecciona primero un proveedor para cargar productos de ese proveedor.
+              No hay proveedor predeterminado activo. Configura uno antes de cargar ingresos.
             </div>
           )}
 
@@ -4782,7 +5061,7 @@ function IngresosView() {
                             e.target.value ? Number(e.target.value) : ""
                           )
                         }
-                        disabled={!providerId}
+                        disabled={!defaultProvider}
                         className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-brand-300 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <option value="">Seleccionar producto</option>
@@ -4903,7 +5182,7 @@ function IngresosView() {
                               e.target.value ? Number(e.target.value) : ""
                             )
                           }
-                          disabled={!providerId}
+                          disabled={!defaultProvider}
                           className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-brand-300 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <option value="">Seleccionar producto</option>
@@ -6416,7 +6695,7 @@ function Content({
   onNavigate: (key: ModuleKey) => void;
   user: AuthUser;
 }) {
-  if (user.rol === "CAJERO" && !["dashboard", "ventas", "caja", "stock", "movimientos"].includes(active)) {
+  if (user.rol === "CAJERO" && !["dashboard", "ventas", "productos", "caja", "movimientos"].includes(active)) {
     return <CajeroDashboard onNavigate={onNavigate as any} />;
   }
 
@@ -6526,8 +6805,8 @@ export default function App() {
   const bottomPrimaryItems = useMemo(() => {
     const primaryKeys =
       currentUser?.rol === "ADMIN"
-        ? ["dashboard", "ventas", "caja", "stock"]
-        : ["dashboard", "ventas", "caja", "stock", "movimientos"];
+        ? ["dashboard", "ventas", "productos", "caja"]
+        : ["dashboard", "ventas", "productos", "caja", "movimientos"];
 
     return primaryKeys
       .map((key) => visibleNavigation.find((item) => item.key === key))
