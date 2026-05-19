@@ -287,6 +287,8 @@ type ProductoAnalisis = {
   stockActual: number;
   stockMinimo: number;
   costoProveedor: number;
+  manejaPack: boolean;
+  unidadesPorPack: number | null;
   cantidadVendida: number;
   totalVendido: number;
   costoTotal: number;
@@ -2025,6 +2027,14 @@ function formatPercent(value: number) {
   return `${value.toFixed(1)}%`;
 }
 
+function formatReportQuantity(item: Pick<ProductoAnalisis, "cantidadVendida" | "manejaPack" | "unidadesPorPack">) {
+  if (!item.manejaPack || !item.unidadesPorPack || item.unidadesPorPack <= 0) {
+    return `${item.cantidadVendida} u.`;
+  }
+
+  return `${formatPackBreakdown(item.cantidadVendida, item.unidadesPorPack)} (${item.cantidadVendida} u.)`;
+}
+
 function ProductMiniTable({
   title,
   rows,
@@ -2056,7 +2066,7 @@ function ProductMiniTable({
                     ? formatGs(item.gananciaTotal)
                     : metric === "margen"
                     ? formatPercent(item.margen)
-                    : `${item.cantidadVendida} u.`}
+                    : formatReportQuantity(item)}
                 </p>
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
@@ -2223,7 +2233,7 @@ function ReportesView() {
                     {data.ganancias.map((item) => (
                       <tr key={item.productoId} className="rounded-2xl bg-slate-50">
                         <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">{item.nombre}</td>
-                        <td className="px-4 py-4 text-slate-700">{item.cantidadVendida} u.</td>
+                        <td className="px-4 py-4 font-semibold text-brand-700">{formatReportQuantity(item)}</td>
                         <td className="px-4 py-4 text-slate-700">{formatGs(item.totalVendido)}</td>
                         <td className="px-4 py-4 text-slate-700">{formatGs(item.costoTotal)}</td>
                         <td className="px-4 py-4 font-semibold text-slate-950">{formatGs(item.gananciaTotal)}</td>
