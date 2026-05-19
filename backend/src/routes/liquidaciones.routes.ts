@@ -25,6 +25,11 @@ router.get('/', async (_req, res) => {
       },
       include: {
         proveedor: true,
+        detallesVenta: {
+          include: {
+            producto: true,
+          },
+        },
         detalles: {
           include: {
             producto: true,
@@ -126,6 +131,7 @@ router.get('/resumen/calculo', async (req, res) => {
         costoPack: number | null
         manejaPack: boolean
         unidadesPorPack: number | null
+        totalVendido: number
         subtotalPagar: number
       }
     > = {}
@@ -144,6 +150,7 @@ router.get('/resumen/calculo', async (req, res) => {
           costoPack: item.producto.costoPack,
           manejaPack: item.producto.manejaPack,
           unidadesPorPack: item.producto.unidadesPorPack,
+          totalVendido: 0,
           subtotalPagar: 0,
         }
       }
@@ -165,11 +172,13 @@ router.get('/resumen/calculo', async (req, res) => {
           costoPack: item.producto.costoPack,
           manejaPack: item.producto.manejaPack,
           unidadesPorPack: item.producto.unidadesPorPack,
+          totalVendido: 0,
           subtotalPagar: 0,
         }
       }
 
       resumenPorProducto[productoId].cantidadVendida += item.cantidad
+      resumenPorProducto[productoId].totalVendido += item.subtotal
     }
 
     const detalles = Object.values(resumenPorProducto)
@@ -221,6 +230,11 @@ router.get('/:id', async (req, res) => {
       where: { id },
       include: {
         proveedor: true,
+        detallesVenta: {
+          include: {
+            producto: true,
+          },
+        },
         detalles: {
           include: {
             producto: true,

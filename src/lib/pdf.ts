@@ -16,25 +16,16 @@ function formatGsPdf(value: number) {
 }
 
 function formatPackBreakdown(unidades: number, unidadesPorPack: number | null) {
-  if (!unidadesPorPack || unidadesPorPack <= 0) {
-    return "—";
-  }
+  if (!unidadesPorPack || unidadesPorPack <= 0) return "-";
 
   const packsCompletos = Math.floor(unidades / unidadesPorPack);
   const unidadesSueltas = unidades % unidadesPorPack;
 
-  if (packsCompletos === 0 && unidadesSueltas === 0) {
-    return "0 packs";
-  }
-
+  if (packsCompletos === 0 && unidadesSueltas === 0) return "0 packs";
   if (unidadesSueltas === 0) {
     return `${packsCompletos} pack${packsCompletos === 1 ? "" : "s"}`;
   }
-
-  if (packsCompletos === 0) {
-    return `${unidadesSueltas} u.`;
-  }
-
+  if (packsCompletos === 0) return `${unidadesSueltas} u.`;
   return `${packsCompletos} pack${packsCompletos === 1 ? "" : "s"} + ${unidadesSueltas} u.`;
 }
 
@@ -44,6 +35,9 @@ function getPackMetrics(params: {
   stockActual: number;
   manejaPack: boolean;
   unidadesPorPack: number | null;
+  subtotalProveedor?: number;
+  costoUnitario?: number;
+  costoPack?: number | null;
 }) {
   const {
     cantidadIngresada,
@@ -51,48 +45,75 @@ function getPackMetrics(params: {
     stockActual,
     manejaPack,
     unidadesPorPack,
+    subtotalProveedor = 0,
+    costoUnitario = 0,
+    costoPack = null,
   } = params;
 
   if (!manejaPack || !unidadesPorPack || unidadesPorPack <= 0) {
     return {
-      packLabel: "Por unidad",
-      packsIngresados: "—",
-      liquidacionPack: "Por unidad",
-      stockPack: "—",
+      packsIngresados: "-",
+      vendidoConUnidades: `${cantidadVendida} u.`,
+      packsACobrar: `${cantidadVendida} u.`,
+      costoPackDisplay: formatGsPdf(costoUnitario),
+      stockDisplay: `${stockActual} u.`,
     };
   }
 
-  const packsALiquidar = Math.ceil(cantidadVendida / unidadesPorPack);
-  const unidadesLiquidadas = packsALiquidar * unidadesPorPack;
+  const packsACobrarNumero = Math.ceil(cantidadVendida / unidadesPorPack);
+  const packsACobrar = `${packsACobrarNumero} pack${
+    packsACobrarNumero === 1 ? "" : "s"
+  }`;
+  const costoPackReal =
+    packsACobrarNumero > 0 && subtotalProveedor > 0
+      ? subtotalProveedor / packsACobrarNumero
+      : typeof costoPack === "number" && Number.isFinite(costoPack)
+        ? costoPack
+        : costoUnitario * unidadesPorPack;
+  const vendido = formatPackBreakdown(cantidadVendida, unidadesPorPack);
+  const stock = formatPackBreakdown(stockActual, unidadesPorPack);
 
   return {
-    packLabel: `${unidadesPorPack} u.`,
     packsIngresados: formatPackBreakdown(cantidadIngresada, unidadesPorPack),
-    liquidacionPack: `${packsALiquidar} pack${packsALiquidar === 1 ? "" : "s"} / ${unidadesLiquidadas} u.`,
-    stockPack: formatPackBreakdown(stockActual, unidadesPorPack),
+    vendidoConUnidades: `${vendido} (${cantidadVendida} u.)`,
+    packsACobrar,
+    costoPackDisplay: formatGsPdf(costoPackReal),
+    stockDisplay: `${stock} (${stockActual} u.)`,
   };
 }
 
 export function generarPDFLiquidacion(liquidacion: any) {
+  const ventas = liquidacion.detallesVenta ?? [];
+  const totalVendido = ventas.reduce(
+    (acc: number, item: any) => acc + item.subtotal,
+    0
+  );
+
   const rows = liquidacion.detalles.map((item: any) => {
+    const ventaTotal = ventas
+      .filter((venta: any) => venta.productoId === item.producto.id)
+      .reduce((acc: number, venta: any) => acc + venta.subtotal, 0);
     const packInfo = getPackMetrics({
       cantidadIngresada: item.cantidadRecibida,
       cantidadVendida: item.cantidadVendida,
       stockActual: item.cantidadRestante,
       manejaPack: item.producto.manejaPack,
       unidadesPorPack: item.producto.unidadesPorPack,
+      subtotalProveedor: item.subtotal,
+      costoUnitario: item.costoUnitario,
+      costoPack: item.producto.costoPack,
     });
+    const ganancia = ventaTotal - item.subtotal;
 
     return [
       { text: item.producto.nombre, style: "tableCellLeft" },
-      { text: `${item.cantidadRecibida} u.`, style: "tableCellCenter" },
-      { text: `${item.cantidadVendida} u.`, style: "tableCellCenter" },
-      { text: packInfo.packLabel, style: "tableCellCenter" },
-      { text: packInfo.packsIngresados, style: "tableCellCenter" },
-      { text: packInfo.liquidacionPack, style: "tableCellCenterBrand" },
-      { text: packInfo.stockPack, style: "tableCellCenter" },
-      { text: formatGsPdf(item.costoUnitario), style: "tableCellRight" },
+      { text: packInfo.vendidoConUnidades, style: "tableCellCenterBrand" },
+      { text: packInfo.packsACobrar, style: "tableCellCenter" },
+      { text: packInfo.costoPackDisplay, style: "tableCellRight" },
+      { text: packInfo.stockDisplay, style: "tableCellCenter" },
+      { text: formatGsPdf(ventaTotal), style: "tableCellRight" },
       { text: formatGsPdf(item.subtotal), style: "tableCellRightBold" },
+      { text: formatGsPdf(ganancia), style: "tableCellRightBoldBrand" },
     ];
   });
 
@@ -102,18 +123,12 @@ export function generarPDFLiquidacion(liquidacion: any) {
     pageMargins: [18, 24, 18, 24],
 
     content: [
-      {
-        text: `Liquidación #${liquidacion.id}`,
-        style: "header",
-      },
-      {
-        text: liquidacion.proveedor.nombre,
-        style: "subheader",
-      },
+      { text: `Liquidacion #${liquidacion.id}`, style: "header" },
+      { text: liquidacion.proveedor.nombre, style: "subheader" },
       {
         columns: [
           [
-            { text: `Período: ${liquidacion.periodo}`, style: "meta" },
+            { text: `Periodo: ${liquidacion.periodo}`, style: "meta" },
             {
               text: `Fecha de registro: ${new Date(
                 liquidacion.createdAt
@@ -133,18 +148,17 @@ export function generarPDFLiquidacion(liquidacion: any) {
       {
         table: {
           headerRows: 1,
-          widths: [190, 70, 65, 58, 115, 125, 105, 88, 100],
+          widths: [210, 160, 95, 95, 130, 100, 110, 100],
           body: [
             [
               { text: "Producto", style: "tableHeaderLeft" },
-              { text: "Ingresado", style: "tableHeaderCenter" },
               { text: "Vendido", style: "tableHeaderCenter" },
-              { text: "Pack", style: "tableHeaderCenter" },
-              { text: "Packs ing.", style: "tableHeaderCenter" },
-              { text: "Liquidación", style: "tableHeaderCenter" },
-              { text: "Stock pack", style: "tableHeaderCenter" },
-              { text: "Costo", style: "tableHeaderCenter" },
-              { text: "Subtotal", style: "tableHeaderRight" },
+              { text: "Packs cobrados", style: "tableHeaderCenter" },
+              { text: "Costo pack", style: "tableHeaderCenter" },
+              { text: "Stock restante", style: "tableHeaderCenter" },
+              { text: "Total vendido", style: "tableHeaderRight" },
+              { text: "Pago proveedor", style: "tableHeaderRight" },
+              { text: "Ganancia", style: "tableHeaderRight" },
             ],
             ...rows,
           ],
@@ -167,11 +181,11 @@ export function generarPDFLiquidacion(liquidacion: any) {
       {
         margin: [0, 14, 0, 0],
         text:
-          "Nota: Los productos configurados por pack se liquidan redondeando hacia arriba al pack completo. Por eso las unidades liquidadas y el total pueden ser mayores que las unidades vendidas reales.",
+          "Nota: Los productos por pack se liquidan redondeando hacia arriba al pack completo cuando hay unidades sueltas.",
         style: "warningNote",
       },
       {
-        text: `Total liquidado: ${formatGsPdf(liquidacion.totalPagar)}`,
+        text: `Total vendido: ${formatGsPdf(totalVendido)}   |   Pago proveedor: ${formatGsPdf(liquidacion.totalPagar)}   |   Ganancia: ${formatGsPdf(totalVendido - liquidacion.totalPagar)}`,
         style: "total",
       },
       {
@@ -245,15 +259,20 @@ export function generarPDFLiquidacion(liquidacion: any) {
         bold: true,
         alignment: "right",
       },
+      tableCellRightBoldBrand: {
+        fontSize: 9,
+        color: "#456600",
+        bold: true,
+        alignment: "right",
+      },
       warningNote: {
         fontSize: 10,
         color: "#92400e",
         fillColor: "#fef3c7",
-        margin: [0, 0, 0, 0],
       },
       total: {
         margin: [0, 18, 0, 0],
-        fontSize: 20,
+        fontSize: 18,
         bold: true,
         alignment: "right",
         color: "#0f172a",

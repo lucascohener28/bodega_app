@@ -206,6 +206,10 @@ type LiquidacionDetalle = {
   cantidadVendida: number;
   stockActual: number;
   costoUnitario: number;
+  costoPack: number | null;
+  manejaPack: boolean;
+  unidadesPorPack: number | null;
+  totalVendido: number;
   subtotalPagar: number;
 };
 
@@ -444,6 +448,9 @@ function getPackMetrics(params: {
   stockActual: number;
   manejaPack: boolean;
   unidadesPorPack: number | null;
+  subtotalProveedor?: number;
+  costoUnitario?: number;
+  costoPack?: number | null;
 }) {
   const {
     cantidadIngresada,
@@ -451,39 +458,58 @@ function getPackMetrics(params: {
     stockActual,
     manejaPack,
     unidadesPorPack,
+    subtotalProveedor = 0,
+    costoUnitario = 0,
+    costoPack = null,
   } = params;
 
   if (!manejaPack || !unidadesPorPack || unidadesPorPack <= 0) {
     return {
       packLabel: "Por unidad",
       packsIngresados: "-",
-      packsALiquidar: "-",
-      unidadesLiquidadas: `${cantidadVendida} u.`,
+      vendido: `${cantidadVendida} ${cantidadVendida === 1 ? "unidad" : "unidades"}`,
+      vendidoConUnidades: `${cantidadVendida} ${cantidadVendida === 1 ? "unidad" : "unidades"}`,
+      unidadesTotales: `${cantidadVendida} u.`,
+      packsACobrar: cantidadVendida > 0 ? `${cantidadVendida} u.` : "0 u.",
+      packsACobrarNumero: cantidadVendida,
+      costoPackDisplay: formatGs(costoUnitario),
       packsRestantes: "-",
-      liquidacionPack: "Por unidad",
+      liquidacionPack: `${cantidadVendida} u.`,
       stockPack: "-",
+      stockDisplay: `${stockActual} ${stockActual === 1 ? "unidad" : "unidades"}`,
     };
   }
 
-  const packsALiquidarNumero = Math.ceil(cantidadVendida / unidadesPorPack);
-  const unidadesLiquidadasNumero = packsALiquidarNumero * unidadesPorPack;
+  const packsACobrarNumero = Math.ceil(cantidadVendida / unidadesPorPack);
 
-  const packsALiquidar = `${packsALiquidarNumero} pack${
-    packsALiquidarNumero === 1 ? "" : "s"
+  const packsACobrar = `${packsACobrarNumero} pack${
+    packsACobrarNumero === 1 ? "" : "s"
   }`;
 
-  const unidadesLiquidadas = `${unidadesLiquidadasNumero} u.`;
+  const costoPackReal =
+    packsACobrarNumero > 0 && subtotalProveedor > 0
+      ? subtotalProveedor / packsACobrarNumero
+      : typeof costoPack === "number" && Number.isFinite(costoPack)
+        ? costoPack
+        : costoUnitario * unidadesPorPack;
+
   const packsIngresados = formatPackBreakdown(cantidadIngresada, unidadesPorPack);
   const packsRestantes = formatPackBreakdown(stockActual, unidadesPorPack);
+  const vendido = formatPackBreakdown(cantidadVendida, unidadesPorPack);
 
   return {
     packLabel: `${unidadesPorPack} u.`,
     packsIngresados,
-    packsALiquidar,
-    unidadesLiquidadas,
+    vendido,
+    vendidoConUnidades: `${vendido} (${cantidadVendida} u.)`,
+    unidadesTotales: `${cantidadVendida} u.`,
+    packsACobrar,
+    packsACobrarNumero,
+    costoPackDisplay: formatGs(costoPackReal),
     packsRestantes,
-    liquidacionPack: `${packsALiquidar} / ${unidadesLiquidadas}`,
+    liquidacionPack: `${packsACobrar} / ${cantidadVendida} u.`,
     stockPack: packsRestantes,
+    stockDisplay: `${packsRestantes} (${stockActual} u.)`,
   };
 }
 
@@ -5301,6 +5327,18 @@ function LiquidacionesView() {
         codigo: string;
         manejaPack: boolean;
         unidadesPorPack: number | null;
+        costoPack: number | null;
+      };
+    }>;
+    detallesVenta?: Array<{
+      id: number;
+      cantidad: number;
+      precioUnitario: number;
+      subtotal: number;
+      productoId: number;
+      producto: {
+        id: number;
+        nombre: string;
       };
     }>;
   };
@@ -5532,6 +5570,22 @@ function LiquidacionesView() {
     return matchesSearch && matchesProveedor && matchesPeriodo;
   });
 
+  function getHistorialTotalVendido(liquidacion: LiquidacionHistorial) {
+    return (liquidacion.detallesVenta ?? []).reduce(
+      (acc, item) => acc + item.subtotal,
+      0
+    );
+  }
+
+  function getHistorialDetalleTotalVendido(
+    liquidacion: LiquidacionHistorial,
+    productoId: number
+  ) {
+    return (liquidacion.detallesVenta ?? [])
+      .filter((item) => item.productoId === productoId)
+      .reduce((acc, item) => acc + item.subtotal, 0);
+  }
+
   async function handleCerrarLiquidacion(proveedorId: number) {
     try {
       setClosingId(proveedorId);
@@ -5586,20 +5640,40 @@ function LiquidacionesView() {
   }
 
   function buildPrintableHtml(liquidacion: LiquidacionHistorial) {
+    const totalVendido = getHistorialTotalVendido(liquidacion);
+    const ganancia = totalVendido - liquidacion.totalPagar;
     const rows = liquidacion.detalles
-      .map(
-        (item) => `
+      .map((item) => {
+        const ventaTotal = getHistorialDetalleTotalVendido(
+          liquidacion,
+          item.producto.id
+        );
+        const packInfo = getPackMetrics({
+          cantidadIngresada: item.cantidadRecibida,
+          cantidadVendida: item.cantidadVendida,
+          stockActual: item.cantidadRestante,
+          manejaPack: item.producto.manejaPack,
+          unidadesPorPack: item.producto.unidadesPorPack,
+          subtotalProveedor: item.subtotal,
+          costoUnitario: item.costoUnitario,
+          costoPack: item.producto.costoPack,
+        });
+        const gananciaProducto = ventaTotal - item.subtotal;
+
+        return `
           <tr>
             <td>${item.producto.nombre}</td>
             <td>${item.producto.codigo}</td>
-            <td>${item.cantidadRecibida}</td>
-            <td>${item.cantidadVendida}</td>
-            <td>${item.cantidadRestante}</td>
-            <td>${formatGs(item.costoUnitario)}</td>
+            <td>${packInfo.vendidoConUnidades}</td>
+            <td>${packInfo.packsACobrar}</td>
+            <td>${packInfo.costoPackDisplay}</td>
+            <td>${packInfo.stockDisplay}</td>
+            <td>${formatGs(ventaTotal)}</td>
             <td>${formatGs(item.subtotal)}</td>
+            <td>${formatGs(gananciaProducto)}</td>
           </tr>
-        `
-      )
+        `;
+      })
       .join("");
 
     return `
@@ -5671,11 +5745,13 @@ function LiquidacionesView() {
               <tr>
                 <th>Producto</th>
                 <th>Código</th>
-                <th>Recibido</th>
                 <th>Vendido</th>
-                <th>Restante</th>
-                <th>Costo unitario</th>
-                <th>Subtotal</th>
+                <th>Packs cobrados</th>
+                <th>Costo pack</th>
+                <th>Stock restante</th>
+                <th>Total vendido</th>
+                <th>Pago proveedor</th>
+                <th>Ganancia</th>
               </tr>
             </thead>
             <tbody>
@@ -5683,7 +5759,7 @@ function LiquidacionesView() {
             </tbody>
           </table>
 
-          <p class="total">Total pagado: ${formatGs(liquidacion.totalPagar)}</p>
+          <p class="total">Total vendido: ${formatGs(totalVendido)} · Pago proveedor: ${formatGs(liquidacion.totalPagar)} · Ganancia: ${formatGs(ganancia)}</p>
           <p class="note">Para guardar en PDF, usa la opción "Guardar como PDF" desde la ventana de impresión del navegador.</p>
         </body>
       </html>
@@ -5883,117 +5959,191 @@ function LiquidacionesView() {
                     </div>
 
                     <div className="space-y-3 md:hidden">
-                      {selectedLiquidacion.resumen.detalles.map((item) => (
-                        <div
-                          key={item.productoId}
-                          className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="font-semibold text-slate-900">
-                                {item.nombreProducto}
-                              </p>
+                      {selectedLiquidacion.resumen.detalles.map((item) => {
+                        const packInfo = getPackMetrics({
+                          cantidadIngresada: item.cantidadIngresada,
+                          cantidadVendida: item.cantidadVendida,
+                          stockActual: item.stockActual,
+                          manejaPack: item.manejaPack,
+                          unidadesPorPack: item.unidadesPorPack,
+                          subtotalProveedor: item.subtotalPagar,
+                          costoUnitario: item.costoUnitario,
+                          costoPack: item.costoPack,
+                        });
+                        const ganancia = item.totalVendido - item.subtotalPagar;
+
+                        return (
+                          <div
+                            key={item.productoId}
+                            className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-slate-900">
+                                  {item.nombreProducto}
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-brand-700">
+                                  {packInfo.vendidoConUnidades}
+                                </p>
+                              </div>
+
+                              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                                {formatGs(item.subtotalPagar)}
+                              </span>
                             </div>
 
-                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-                              {formatGs(item.subtotalPagar)}
-                            </span>
+                            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                  Packs a cobrar
+                                </p>
+                                <p className="mt-1 text-slate-700">
+                                  {packInfo.packsACobrar}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                  Costo pack
+                                </p>
+                                <p className="mt-1 text-slate-700">
+                                  {packInfo.costoPackDisplay}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                  Total vendido
+                                </p>
+                                <p className="mt-1 text-slate-700">
+                                  {formatGs(item.totalVendido)}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                  Ganancia
+                                </p>
+                                <p className="mt-1 font-semibold text-brand-700">
+                                  {formatGs(ganancia)}
+                                </p>
+                              </div>
+
+                              <div className="col-span-2">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                  Stock restante
+                                </p>
+                                <p className="mt-1 text-slate-700">
+                                  {packInfo.stockDisplay}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-
-                          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                                Ingresado
-                              </p>
-                              <p className="mt-1 text-slate-700">
-                                {item.cantidadIngresada}
-                              </p>
-                            </div>
-
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                                Vendido
-                              </p>
-                              <p className="mt-1 text-slate-700">
-                                {item.cantidadVendida}
-                              </p>
-                            </div>
-
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                                Stock
-                              </p>
-                              <p className="mt-1 text-slate-700">
-                                {item.stockActual}
-                              </p>
-                            </div>
-
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                                Costo
-                              </p>
-                              <p className="mt-1 text-slate-700">
-                                {formatGs(item.costoUnitario)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     <div className="hidden overflow-x-auto md:block">
-                      <table className="w-full min-w-[760px] border-separate border-spacing-y-3">
+                      <table className="w-full min-w-[1180px] border-separate border-spacing-y-3">
                         <thead>
                           <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                             <th className="pb-2">Producto</th>
-                            <th className="pb-2">Ingresado</th>
                             <th className="pb-2">Vendido</th>
+                            <th className="pb-2">Packs a cobrar</th>
+                            <th className="pb-2">Costo pack</th>
+                            <th className="pb-2">Pago proveedor</th>
+                            <th className="pb-2">Total vendido</th>
+                            <th className="pb-2">Ganancia</th>
                             <th className="pb-2">Stock</th>
-                            <th className="pb-2">Costo</th>
-                            <th className="pb-2">Total</th>
                           </tr>
                         </thead>
 
                         <tbody>
-                          {selectedLiquidacion.resumen.detalles.map((item) => (
-                            <tr
-                              key={item.productoId}
-                              className="rounded-2xl bg-slate-50"
-                            >
-                              <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">
-                                {item.nombreProducto}
-                              </td>
-                              <td className="px-4 py-4 text-slate-700">
-                                {item.cantidadIngresada}
-                              </td>
-                              <td className="px-4 py-4 text-slate-700">
-                                {item.cantidadVendida}
-                              </td>
-                              <td className="px-4 py-4 text-slate-700">
-                                {item.stockActual}
-                              </td>
-                              <td className="px-4 py-4 text-slate-700">
-                                {formatGs(item.costoUnitario)}
-                              </td>
-                              <td className="rounded-r-2xl px-4 py-4 font-semibold text-slate-950">
-                                {formatGs(item.subtotalPagar)}
-                              </td>
-                            </tr>
-                          ))}
+                          {selectedLiquidacion.resumen.detalles.map((item) => {
+                            const packInfo = getPackMetrics({
+                              cantidadIngresada: item.cantidadIngresada,
+                              cantidadVendida: item.cantidadVendida,
+                              stockActual: item.stockActual,
+                              manejaPack: item.manejaPack,
+                              unidadesPorPack: item.unidadesPorPack,
+                              subtotalProveedor: item.subtotalPagar,
+                              costoUnitario: item.costoUnitario,
+                              costoPack: item.costoPack,
+                            });
+                            const ganancia = item.totalVendido - item.subtotalPagar;
+
+                            return (
+                              <tr
+                                key={item.productoId}
+                                className="rounded-2xl bg-slate-50"
+                              >
+                                <td className="rounded-l-2xl px-4 py-4 font-semibold text-slate-900">
+                                  {item.nombreProducto}
+                                </td>
+                                <td className="px-4 py-4 font-semibold text-brand-700">
+                                  {packInfo.vendidoConUnidades}
+                                </td>
+                                <td className="px-4 py-4 text-slate-700">
+                                  {packInfo.packsACobrar}
+                                </td>
+                                <td className="px-4 py-4 text-slate-700">
+                                  {packInfo.costoPackDisplay}
+                                </td>
+                                <td className="px-4 py-4 font-semibold text-slate-950">
+                                  {formatGs(item.subtotalPagar)}
+                                </td>
+                                <td className="px-4 py-4 text-slate-700">
+                                  {formatGs(item.totalVendido)}
+                                </td>
+                                <td className="px-4 py-4 font-semibold text-brand-700">
+                                  {formatGs(ganancia)}
+                                </td>
+                                <td className="rounded-r-2xl px-4 py-4 text-slate-700">
+                                  {packInfo.stockDisplay}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
 
-                    <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
-                      <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
-                        Total a pagar
-                      </p>
-                      <h3 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-                        {formatGs(selectedLiquidacion.resumen.totalGeneral)}
-                      </h3>
-                      <p className="mt-2 text-sm text-slate-400">
-                        Deuda pendiente actual de este proveedor
-                      </p>
+                    <div className="mt-6 grid gap-3 rounded-[24px] bg-slate-950 p-5 text-white sm:grid-cols-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          Total vendido
+                        </p>
+                        <h3 className="mt-2 text-2xl font-bold tracking-tight">
+                          {formatGs(
+                            selectedLiquidacion.resumen.detalles.reduce(
+                              (acc, item) => acc + item.totalVendido,
+                              0
+                            )
+                          )}
+                        </h3>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          Pago proveedor
+                        </p>
+                        <h3 className="mt-2 text-2xl font-bold tracking-tight">
+                          {formatGs(selectedLiquidacion.resumen.totalGeneral)}
+                        </h3>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          Ganancia estimada
+                        </p>
+                        <h3 className="mt-2 text-2xl font-bold tracking-tight text-brand-200">
+                          {formatGs(
+                            selectedLiquidacion.resumen.detalles.reduce(
+                              (acc, item) =>
+                                acc + item.totalVendido - item.subtotalPagar,
+                              0
+                            )
+                          )}
+                        </h3>
+                      </div>
                     </div>
                   </>
                 )}
@@ -6233,7 +6383,7 @@ function LiquidacionesView() {
             </div>
 
             <div className="max-h-[calc(92vh-88px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Proveedor
@@ -6257,19 +6407,31 @@ function LiquidacionesView() {
 
                 <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Productos
+                    Total vendido
                   </p>
                   <p className="mt-2 text-lg font-bold text-slate-950">
-                    {selectedHistorial.detalles.length}
+                    {formatGs(getHistorialTotalVendido(selectedHistorial))}
                   </p>
                 </div>
 
                 <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Total pagado
+                    Pago proveedor
                   </p>
                   <p className="mt-2 text-lg font-bold text-slate-950">
                     {formatGs(selectedHistorial.totalPagar)}
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-brand-200 bg-brand-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">
+                    Ganancia
+                  </p>
+                  <p className="mt-2 text-lg font-bold text-brand-700">
+                    {formatGs(
+                      getHistorialTotalVendido(selectedHistorial) -
+                        selectedHistorial.totalPagar
+                    )}
                   </p>
                 </div>
               </div>
@@ -6284,30 +6446,28 @@ function LiquidacionesView() {
               </div>
 
               <div className="mt-6 overflow-x-auto">
-                <table className="w-full min-w-[1500px] table-fixed border-separate border-spacing-y-3">
+                <table className="w-full min-w-[1420px] table-fixed border-separate border-spacing-y-3">
                   <thead>
                     <tr className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                       <th className="w-[220px] pb-2 text-left">Producto</th>
                       <th className="w-[120px] pb-2 text-left">Código</th>
-                      <th className="w-[90px] pb-2 text-center">Ingresado</th>
-                      <th className="w-[150px] pb-2 text-center">
-                        Packs ingresados
-                      </th>
-                      <th className="w-[90px] pb-2 text-center">Vendido</th>
-                      <th className="w-[90px] pb-2 text-center">Pack</th>
+                      <th className="w-[180px] pb-2 text-center">Vendido</th>
                       <th className="w-[130px] pb-2 text-center">
-                        Packs a liquidar
+                        Packs cobrados
                       </th>
-                      <th className="w-[135px] pb-2 text-center">
-                        Unidades liquidadas
+                      <th className="w-[120px] pb-2 text-center">
+                        Costo pack
                       </th>
                       <th className="w-[140px] pb-2 text-center">
-                        Packs restantes
+                        Stock restante
                       </th>
-                      <th className="w-[110px] pb-2 text-center">
-                        Costo unitario
+                      <th className="w-[120px] pb-2 text-right">
+                        Total vendido
                       </th>
-                      <th className="w-[120px] pb-2 text-right">Subtotal</th>
+                      <th className="w-[130px] pb-2 text-right">
+                        Pago proveedor
+                      </th>
+                      <th className="w-[120px] pb-2 text-right">Ganancia</th>
                     </tr>
                   </thead>
 
@@ -6319,7 +6479,15 @@ function LiquidacionesView() {
                         stockActual: item.cantidadRestante,
                         manejaPack: item.producto.manejaPack,
                         unidadesPorPack: item.producto.unidadesPorPack,
+                        subtotalProveedor: item.subtotal,
+                        costoUnitario: item.costoUnitario,
+                        costoPack: item.producto.costoPack,
                       });
+                      const ventaTotal = getHistorialDetalleTotalVendido(
+                        selectedHistorial,
+                        item.producto.id
+                      );
+                      const ganancia = ventaTotal - item.subtotal;
 
                       return (
                         <tr
@@ -6334,40 +6502,32 @@ function LiquidacionesView() {
                             {item.producto.codigo}
                           </td>
 
-                          <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
-                            {item.cantidadRecibida} u.
-                          </td>
-
-                          <td className="px-4 py-4 text-center text-slate-700">
-                            {packInfo.packsIngresados}
-                          </td>
-
-                          <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
-                            {item.cantidadVendida} u.
-                          </td>
-
-                          <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
-                            {packInfo.packLabel}
-                          </td>
-
                           <td className="px-4 py-4 text-center font-medium text-brand-700">
-                            {packInfo.packsALiquidar}
-                          </td>
-
-                          <td className="px-4 py-4 text-center font-medium text-slate-900 whitespace-nowrap">
-                            {packInfo.unidadesLiquidadas}
+                            {packInfo.vendidoConUnidades}
                           </td>
 
                           <td className="px-4 py-4 text-center text-slate-700">
-                            {packInfo.packsRestantes}
+                            {packInfo.packsACobrar}
                           </td>
 
                           <td className="px-4 py-4 text-center text-slate-700 whitespace-nowrap">
-                            {formatGs(item.costoUnitario)}
+                            {packInfo.costoPackDisplay}
                           </td>
 
-                          <td className="rounded-r-2xl px-4 py-4 text-right font-semibold text-slate-950 whitespace-nowrap">
+                          <td className="px-4 py-4 text-center text-slate-700">
+                            {packInfo.stockDisplay}
+                          </td>
+
+                          <td className="px-4 py-4 text-right text-slate-700 whitespace-nowrap">
+                            {formatGs(ventaTotal)}
+                          </td>
+
+                          <td className="px-4 py-4 text-right font-semibold text-slate-950 whitespace-nowrap">
                             {formatGs(item.subtotal)}
+                          </td>
+
+                          <td className="rounded-r-2xl px-4 py-4 text-right font-semibold text-brand-700 whitespace-nowrap">
+                            {formatGs(ganancia)}
                           </td>
                         </tr>
                       );
@@ -6383,13 +6543,34 @@ function LiquidacionesView() {
               </div>
 
               <div className="mt-6 flex flex-col gap-4 rounded-[24px] bg-slate-950 p-5 text-white lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
-                    Total liquidado
-                  </p>
-                  <h3 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-                    {formatGs(selectedHistorial.totalPagar)}
-                  </h3>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                      Total vendido
+                    </p>
+                    <h3 className="mt-2 text-2xl font-bold tracking-tight">
+                      {formatGs(getHistorialTotalVendido(selectedHistorial))}
+                    </h3>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                      Pago proveedor
+                    </p>
+                    <h3 className="mt-2 text-2xl font-bold tracking-tight">
+                      {formatGs(selectedHistorial.totalPagar)}
+                    </h3>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                      Ganancia real
+                    </p>
+                    <h3 className="mt-2 text-2xl font-bold tracking-tight text-brand-200">
+                      {formatGs(
+                        getHistorialTotalVendido(selectedHistorial) -
+                          selectedHistorial.totalPagar
+                      )}
+                    </h3>
+                  </div>
                 </div>
 
                 <div className="grid gap-3 sm:flex sm:flex-wrap">
