@@ -1,24 +1,15 @@
 import { Router } from 'express'
 import { prisma } from '../config/prisma'
+import {
+  calcularDeudaPendienteTotal,
+  calcularSubtotalLiquidacion,
+} from '../services/liquidaciones.service'
 
 const router = Router()
 
 function margen(ganancia: number, venta: number) {
   if (venta <= 0) return 0
   return (ganancia / venta) * 100
-}
-
-function calcularCostoLiquidacion(
-  cantidad: number,
-  costoProveedor: number,
-  manejaPack: boolean,
-  unidadesPorPack: number | null
-) {
-  if (manejaPack && unidadesPorPack && unidadesPorPack > 0) {
-    return Math.ceil(cantidad / unidadesPorPack) * unidadesPorPack * costoProveedor
-  }
-
-  return cantidad * costoProveedor
 }
 
 router.get('/resumen', async (_req, res) => {
@@ -71,10 +62,10 @@ router.get('/resumen', async (_req, res) => {
       productos,
       ultimasVentas,
       detallesVentaMes,
-      detallesVentaPendientes,
       ultimosMovimientos,
       ultimosIngresos,
       ultimasLiquidaciones,
+      deudaProveedores,
     ] = await Promise.all([
       prisma.venta.findMany({
         where: {
@@ -132,14 +123,6 @@ router.get('/resumen', async (_req, res) => {
           venta: true,
         },
       }),
-      prisma.detalleVenta.findMany({
-        where: {
-          liquidado: false,
-        },
-        include: {
-          producto: true,
-        },
-      }),
       prisma.movimientoInventario.findMany({
         orderBy: {
           id: 'desc',
@@ -170,22 +153,47 @@ router.get('/resumen', async (_req, res) => {
           proveedor: true,
         },
       }),
+      calcularDeudaPendienteTotal(prisma),
     ])
 
     const totalVentasHoy = ventasHoy.reduce((acc, venta) => acc + venta.total, 0)
     const totalVentasMes = ventasMes.reduce((acc, venta) => acc + venta.total, 0)
 
-    const calcularGananciaVentas = (ventas: typeof ventasHoy) =>
-      ventas.reduce(
-        (acc, venta) =>
-          acc +
-          venta.detalles.reduce(
-            (detalleAcc, item) =>
-              detalleAcc + item.subtotal - item.cantidad * item.producto.costoProveedor,
-            0
-          ),
-        0
-      )
+    const calcularGananciaVentas = (ventas: typeof ventasHoy) => {
+      const productosVendidos = new Map<
+        number,
+        {
+          cantidadVendida: number
+          totalVendido: number
+          producto: (typeof ventasHoy)[number]['detalles'][number]['producto']
+        }
+      >()
+
+      for (const venta of ventas) {
+        for (const item of venta.detalles) {
+          const actual =
+            productosVendidos.get(item.productoId) ??
+            {
+              cantidadVendida: 0,
+              totalVendido: 0,
+              producto: item.producto,
+            }
+
+          actual.cantidadVendida += item.cantidad
+          actual.totalVendido += item.subtotal
+          productosVendidos.set(item.productoId, actual)
+        }
+      }
+
+      return Array.from(productosVendidos.values()).reduce((acc, item) => {
+        const costoRealProveedor = calcularSubtotalLiquidacion(
+          item.cantidadVendida,
+          item.producto
+        )
+
+        return acc + item.totalVendido - costoRealProveedor
+      }, 0)
+    }
 
     const gananciaHoy = calcularGananciaVentas(ventasHoy)
     const gananciaMes = calcularGananciaVentas(ventasMes)
@@ -200,18 +208,6 @@ router.get('/resumen', async (_req, res) => {
       (producto) => producto.stockActual <= producto.stockMinimo
     )
 
-    const deudaProveedores = detallesVentaPendientes.reduce(
-      (acc, item) =>
-        acc +
-        calcularCostoLiquidacion(
-          item.cantidad,
-          item.producto.costoProveedor,
-          item.producto.manejaPack,
-          item.producto.unidadesPorPack
-        ),
-      0
-    )
-
     const productosMes = new Map<
       number,
       {
@@ -224,6 +220,10 @@ router.get('/resumen', async (_req, res) => {
         margen: number
         stockActual: number
         stockMinimo: number
+        costoProveedor: number
+        costoPack: number | null
+        manejaPack: boolean
+        unidadesPorPack: number | null
       }
     >()
 
@@ -239,17 +239,29 @@ router.get('/resumen', async (_req, res) => {
           margen: 0,
           stockActual: item.producto.stockActual,
           stockMinimo: item.producto.stockMinimo,
+          costoProveedor: item.producto.costoProveedor,
+          costoPack: item.producto.costoPack,
+          manejaPack: item.producto.manejaPack,
+          unidadesPorPack: item.producto.unidadesPorPack,
         })
       }
 
       const actual = productosMes.get(item.productoId)!
       actual.cantidadVendida += item.cantidad
       actual.totalVendido += item.subtotal
-      actual.gananciaTotal +=
-        item.subtotal - item.cantidad * item.producto.costoProveedor
     }
 
     const productosAnalizados = Array.from(productosMes.values()).map((item) => ({
+      ...item,
+      gananciaTotal:
+        item.totalVendido -
+        calcularSubtotalLiquidacion(item.cantidadVendida, {
+          costoProveedor: item.costoProveedor,
+          costoPack: item.costoPack,
+          manejaPack: item.manejaPack,
+          unidadesPorPack: item.unidadesPorPack,
+        }),
+    })).map((item) => ({
       ...item,
       margen: margen(item.gananciaTotal, item.totalVendido),
     }))

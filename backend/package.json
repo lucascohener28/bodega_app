@@ -15,6 +15,7 @@
     "start": "node dist/server.js",
     "seed:admin": "npm run build && node dist/scripts/seed-admin.js",
     "reset:operational-data": "tsx src/scripts/reset-operational-data.ts",
+    "delete:venta47-liquidacion18": "tsx src/scripts/delete-venta-47-liquidacion-18.ts",
     "db:export-data": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -SkipImport",
     "db:import-supabase": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -SkipExport",
     "db:migrate-data:supabase": "powershell -ExecutionPolicy Bypass -File ./scripts/migrar-datos-supabase.ps1 -TruncateBeforeImport",

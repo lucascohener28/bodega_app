@@ -6,10 +6,6 @@ import { roleMiddleware } from '../middlewares/role.middleware'
 const router = Router()
 const adminOnly = roleMiddleware([Rol.ADMIN])
 
-function roundToThousand(value: number) {
-  return Math.round(value / 1000) * 1000
-}
-
 function resolvePackPricing(body: any, current?: any) {
   const manejaPack =
     body.manejaPack !== undefined ? Boolean(body.manejaPack) : Boolean(current?.manejaPack)
@@ -49,8 +45,8 @@ function resolvePackPricing(body: any, current?: any) {
     unidadesPorPack: manejaPack ? unidadesPorPack : null,
     costoPack,
     precioVentaPack,
-    costoProveedor: roundToThousand(costoPack / unidadesPorPack),
-    precioVenta: roundToThousand(precioVentaPack / unidadesPorPack),
+    costoProveedor: costoPack / unidadesPorPack,
+    precioVenta: precioVentaPack / unidadesPorPack,
   }
 }
 

@@ -7,7 +7,12 @@ const pdfFontsAny = pdfFonts as any;
 pdfMakeAny.vfs = pdfFontsAny.vfs;
 
 function formatGsPdf(value: number) {
-  return `Gs. ${value.toLocaleString("es-PY")}`;
+  const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
+
+  return `Gs. ${amount.toLocaleString("es-PY", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function formatPackBreakdown(unidades: number, unidadesPorPack: number | null) {

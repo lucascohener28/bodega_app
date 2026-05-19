@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../config/prisma'
+import { calcularSubtotalLiquidacion } from '../services/liquidaciones.service'
 
 const router = Router()
 
@@ -14,24 +15,6 @@ function obtenerRangoPeriodo(periodo: string) {
   const fechaFin = new Date(anio, mes, 1)
 
   return { fechaInicio, fechaFin }
-}
-
-function calcularSubtotalPagar(
-  cantidadVendida: number,
-  costoUnitario: number,
-  manejaPack: boolean,
-  unidadesPorPack: number | null
-) {
-  if (manejaPack && unidadesPorPack && unidadesPorPack > 0) {
-    const packs = Math.ceil(cantidadVendida / unidadesPorPack)
-    return packs * itemSafeUnits(unidadesPorPack) * costoUnitario
-  }
-
-  return cantidadVendida * costoUnitario
-}
-
-function itemSafeUnits(unidadesPorPack: number | null) {
-  return unidadesPorPack && unidadesPorPack > 0 ? unidadesPorPack : 0
 }
 
 router.get('/', async (_req, res) => {
@@ -140,6 +123,7 @@ router.get('/resumen/calculo', async (req, res) => {
         cantidadVendida: number
         stockActual: number
         costoUnitario: number
+        costoPack: number | null
         manejaPack: boolean
         unidadesPorPack: number | null
         subtotalPagar: number
@@ -157,6 +141,7 @@ router.get('/resumen/calculo', async (req, res) => {
           cantidadVendida: 0,
           stockActual: item.producto.stockActual,
           costoUnitario: item.producto.costoProveedor,
+          costoPack: item.producto.costoPack,
           manejaPack: item.producto.manejaPack,
           unidadesPorPack: item.producto.unidadesPorPack,
           subtotalPagar: 0,
@@ -177,6 +162,7 @@ router.get('/resumen/calculo', async (req, res) => {
           cantidadVendida: 0,
           stockActual: item.producto.stockActual,
           costoUnitario: item.producto.costoProveedor,
+          costoPack: item.producto.costoPack,
           manejaPack: item.producto.manejaPack,
           unidadesPorPack: item.producto.unidadesPorPack,
           subtotalPagar: 0,
@@ -189,12 +175,12 @@ router.get('/resumen/calculo', async (req, res) => {
     const detalles = Object.values(resumenPorProducto)
       .filter((item) => item.cantidadVendida > 0)
       .map((item) => {
-        const subtotalPagar = calcularSubtotalPagar(
-          item.cantidadVendida,
-          item.costoUnitario,
-          item.manejaPack,
-          item.unidadesPorPack
-        )
+        const subtotalPagar = calcularSubtotalLiquidacion(item.cantidadVendida, {
+          costoProveedor: item.costoUnitario,
+          costoPack: item.costoPack,
+          manejaPack: item.manejaPack,
+          unidadesPorPack: item.unidadesPorPack,
+        })
 
         return {
           ...item,
@@ -334,6 +320,7 @@ router.post('/', async (req, res) => {
         cantidadVendida: number
         cantidadRestante: number
         costoUnitario: number
+        costoPack: number | null
         manejaPack: boolean
         unidadesPorPack: number | null
         subtotal: number
@@ -350,6 +337,7 @@ router.post('/', async (req, res) => {
           cantidadVendida: 0,
           cantidadRestante: item.producto.stockActual,
           costoUnitario: item.producto.costoProveedor,
+          costoPack: item.producto.costoPack,
           manejaPack: item.producto.manejaPack,
           unidadesPorPack: item.producto.unidadesPorPack,
           subtotal: 0,
@@ -369,6 +357,7 @@ router.post('/', async (req, res) => {
           cantidadVendida: 0,
           cantidadRestante: item.producto.stockActual,
           costoUnitario: item.producto.costoProveedor,
+          costoPack: item.producto.costoPack,
           manejaPack: item.producto.manejaPack,
           unidadesPorPack: item.producto.unidadesPorPack,
           subtotal: 0,
@@ -381,12 +370,12 @@ router.post('/', async (req, res) => {
     const detallesData = Object.values(resumenPorProducto)
       .filter((item) => item.cantidadVendida > 0)
       .map((item) => {
-        const subtotal = calcularSubtotalPagar(
-          item.cantidadVendida,
-          item.costoUnitario,
-          item.manejaPack,
-          item.unidadesPorPack
-        )
+        const subtotal = calcularSubtotalLiquidacion(item.cantidadVendida, {
+          costoProveedor: item.costoUnitario,
+          costoPack: item.costoPack,
+          manejaPack: item.manejaPack,
+          unidadesPorPack: item.unidadesPorPack,
+        })
 
         return {
           productoId: item.productoId,

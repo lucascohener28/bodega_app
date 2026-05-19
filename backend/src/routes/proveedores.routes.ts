@@ -1,46 +1,8 @@
 import { Router } from 'express'
 import { prisma } from '../config/prisma'
+import { calcularDeudaPendienteProveedor } from '../services/liquidaciones.service'
 
 const router = Router()
-
-function calcularCostoLiquidacion(
-  cantidad: number,
-  costoProveedor: number,
-  manejaPack: boolean,
-  unidadesPorPack: number | null
-) {
-  if (manejaPack && unidadesPorPack && unidadesPorPack > 0) {
-    return Math.ceil(cantidad / unidadesPorPack) * unidadesPorPack * costoProveedor
-  }
-
-  return cantidad * costoProveedor
-}
-
-async function calcularDeudaPendiente(proveedorId: number) {
-  const ventasPendientes = await prisma.detalleVenta.findMany({
-    where: {
-      liquidado: false,
-      producto: {
-        proveedorId,
-      },
-    },
-    include: {
-      producto: true,
-    },
-  })
-
-  return ventasPendientes.reduce(
-    (acc, item) =>
-      acc +
-      calcularCostoLiquidacion(
-        item.cantidad,
-        item.producto.costoProveedor,
-        item.producto.manejaPack,
-        item.producto.unidadesPorPack
-      ),
-    0
-  )
-}
 
 router.get('/', async (_req, res) => {
   try {
@@ -63,7 +25,7 @@ router.get('/', async (_req, res) => {
         ...proveedor,
         cantidadProductos: proveedor._count.productos,
         cantidadLiquidaciones: proveedor._count.liquidaciones,
-        deudaPendiente: await calcularDeudaPendiente(proveedor.id),
+        deudaPendiente: await calcularDeudaPendienteProveedor(prisma, proveedor.id),
       }))
     )
 
@@ -119,7 +81,7 @@ router.get('/:id', async (req, res) => {
       ...proveedor,
       cantidadProductos: proveedor._count.productos,
       cantidadLiquidaciones: proveedor._count.liquidaciones,
-      deudaPendiente: await calcularDeudaPendiente(proveedor.id),
+      deudaPendiente: await calcularDeudaPendienteProveedor(prisma, proveedor.id),
     })
   } catch (error) {
     console.error(error)

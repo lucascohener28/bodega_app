@@ -329,7 +329,12 @@ type ReportesData = {
 };
 
 function formatGs(value: number) {
-  return `Gs. ${value.toLocaleString("es-PY")}`;
+  const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
+
+  return `Gs. ${amount.toLocaleString("es-PY", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function formatDateTime(value: string) {
@@ -374,7 +379,7 @@ function getPackUnits(manejaPack: boolean, unidadesPorPack: string | number | nu
 function getCalculatedUnitValue(packValue: string | number | null | undefined, units: number) {
   const value = Number(packValue);
   if (!Number.isFinite(value) || units <= 0) return 0;
-  return Math.round(value / units / 1000) * 1000;
+  return value / units;
 }
 
 function getPackMetrics(params: {
