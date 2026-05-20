@@ -22,7 +22,6 @@ import { apiFetch, clearAuthToken, fetchJson, setAuthToken } from "./lib/api";
 import { BottomNavigation } from "./components/layout/BottomNavigation";
 import { ChangePasswordRequired } from "./components/auth/ChangePasswordRequired";
 import { CajaDiariaView } from "./modules/caja/CajaDiariaView";
-import { CajeroDashboard } from "./modules/cajero/CajeroDashboard";
 
 type ModuleKey =
   | "dashboard"
@@ -533,7 +532,7 @@ const navigation: NavItem[] = [
 function getVisibleNavigation(user: AuthUser) {
   if (user.rol === "ADMIN") return navigation;
   return navigation.filter((item) =>
-    ["dashboard", "ventas", "productos", "caja", "movimientos"].includes(item.key)
+    ["ventas", "caja", "productos", "movimientos"].includes(item.key)
   );
 }
 
@@ -1726,7 +1725,8 @@ function SalesView() {
 }
 
 
-function MovimientosView() {
+function MovimientosView({ role = "ADMIN" }: { role?: UserRole }) {
+  const isCajero = role === "CAJERO";
   const [movements, setMovements] = useState<MovimientoInventario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1808,7 +1808,7 @@ function MovimientosView() {
         </div>
       </section>
 
-      <section className="grid gap-5 md:grid-cols-3">
+      {!isCajero && <section className="grid gap-5 md:grid-cols-3">
         <div className="rounded-[24px] border border-brand-100 bg-brand-50/80 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
             Total de entradas
@@ -1835,7 +1835,7 @@ function MovimientosView() {
             {totals.ajustes}
           </h3>
         </div>
-      </section>
+      </section>}
 
       <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">
         <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1937,6 +1937,16 @@ function MovimientosView() {
                       </p>
                     </div>
 
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        Precio venta
+                      </p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {formatGs(item.producto.precioVenta)}
+                      </p>
+                    </div>
+
+                    {!isCajero && (
                     <div className="col-span-2">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                         Motivo
@@ -1945,23 +1955,25 @@ function MovimientosView() {
                         {item.observacion ?? "Sin motivo"}
                       </p>
                     </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
 
             <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[1180px] border-separate border-spacing-y-3">
+              <table className={`w-full border-separate border-spacing-y-3 ${isCajero ? "min-w-[860px]" : "min-w-[1180px]"}`}>
                 <thead>
                   <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                     <th className="pb-2">Fecha</th>
                     <th className="pb-2">Producto</th>
                     <th className="pb-2">Código</th>
-                    <th className="pb-2">Categoria</th>
-                    <th className="pb-2">Proveedor</th>
+                    {!isCajero && <th className="pb-2">Categoria</th>}
+                    {!isCajero && <th className="pb-2">Proveedor</th>}
                     <th className="pb-2">Tipo de movimiento</th>
                     <th className="pb-2">Cantidad</th>
-                    <th className="pb-2">Observacion / motivo</th>
+                    <th className="pb-2">Precio venta</th>
+                    {!isCajero && <th className="pb-2">Observacion / motivo</th>}
                   </tr>
                 </thead>
 
@@ -1980,13 +1992,13 @@ function MovimientosView() {
                         {item.producto.codigo}
                       </td>
 
-                      <td className="px-4 py-4 text-slate-600">
+                      {!isCajero && <td className="px-4 py-4 text-slate-600">
                         {item.producto.categoria.nombre}
-                      </td>
+                      </td>}
 
-                      <td className="px-4 py-4 text-slate-600">
+                      {!isCajero && <td className="px-4 py-4 text-slate-600">
                         {item.producto.proveedor?.nombre ?? "Sin proveedor"}
-                      </td>
+                      </td>}
 
                       <td className="px-4 py-4">
                         <span
@@ -2002,9 +2014,13 @@ function MovimientosView() {
                         {item.cantidad}
                       </td>
 
-                      <td className="rounded-r-2xl px-4 py-4 text-sm text-slate-600">
-                        {item.observacion ?? "Sin motivo"}
+                      <td className="px-4 py-4 font-semibold text-slate-900">
+                        {formatGs(item.producto.precioVenta)}
                       </td>
+
+                      {!isCajero && <td className="rounded-r-2xl px-4 py-4 text-sm text-slate-600">
+                        {item.observacion ?? "Sin motivo"}
+                      </td>}
                     </tr>
                   ))}
                 </tbody>
@@ -3433,7 +3449,8 @@ function CategoriesView() {
   );
 }
 
-function ProductsView() {
+function ProductsView({ role = "ADMIN" }: { role?: UserRole }) {
+  const isAdmin = role === "ADMIN";
   const [products, setProducts] = useState<ProductoVenta[]>([]);
   const [categories, setCategories] = useState<CategoriaOption[]>([]);
   const [providers, setProviders] = useState<ProveedorOption[]>([]);
@@ -3496,16 +3513,19 @@ function ProductsView() {
       setLoading(true);
       setError(null);
 
-      const [productsResponse, categoriesResponse, providersResponse] =
-        await Promise.all([
-          fetchJson<ProductoVenta[]>("/productos"),
+      const productsResponse = await fetchJson<ProductoVenta[]>("/productos");
+
+      setProducts(productsResponse);
+
+      if (isAdmin) {
+        const [categoriesResponse, providersResponse] = await Promise.all([
           fetchJson<CategoriaOption[]>("/categorias"),
           fetchJson<ProveedorOption[]>("/proveedores"),
         ]);
 
-      setProducts(productsResponse);
-      setCategories(categoriesResponse);
-      setProviders(providersResponse);
+        setCategories(categoriesResponse);
+        setProviders(providersResponse);
+      }
     } catch (err) {
       console.error(err);
       setError("No se pudieron cargar los productos");
@@ -3516,7 +3536,7 @@ function ProductsView() {
 
   useEffect(() => {
     loadProductsData();
-  }, []);
+  }, [isAdmin]);
 
   const categoryOptions = [
     "TODAS",
@@ -3813,7 +3833,7 @@ function ProductsView() {
     </p>
   </div>
 
-  <button
+  {isAdmin && <button
     onClick={() => {
       setShowCreateForm((prev) => !prev);
       setCreateError(null);
@@ -3822,17 +3842,17 @@ function ProductsView() {
     className="w-full rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-100 transition hover:bg-brand-700 sm:w-auto"
   >
     {showCreateForm ? "Cerrar formulario" : "Nuevo producto"}
-  </button>
+  </button>}
 </section>
 
-      <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      {isAdmin && <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <SecondaryStatCard title="Productos" value={String(products.length)} helper="Catálogo cargado" />
         <SecondaryStatCard title="Stock crítico" value={String(criticalStockCount)} helper="Requiere reposición" />
         <SecondaryStatCard title="Stock bajo" value={String(lowStockCount)} helper="Atención próxima" />
         <SecondaryStatCard title="Unidades internas" value={String(stockUnitsTotal)} helper="Base del sistema" />
-      </section>
+      </section>}
 
-      {showCreateForm && (
+      {isAdmin && showCreateForm && (
     <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-6">          <div className="mb-6">
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-brand-600">
               Alta de producto
@@ -4151,14 +4171,14 @@ function ProductsView() {
               </p>
             </div>
 
-            <div>
+            {isAdmin && <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                 Costo
               </p>
               <p className="mt-1 text-slate-700">
                 {formatGs(product.costoProveedor)}
               </p>
-            </div>
+            </div>}
 
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
@@ -4201,7 +4221,7 @@ function ProductsView() {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          {isAdmin && <div className="mt-4 grid grid-cols-2 gap-2">
             <button
               onClick={() => openEditForm(product)}
               className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -4214,7 +4234,7 @@ function ProductsView() {
             >
               Ajustar stock
             </button>
-          </div>
+          </div>}
         </div>
 
         
@@ -4230,13 +4250,13 @@ function ProductsView() {
               <th className="pb-2">Categoría</th>
               <th className="pb-2">Proveedor</th>
               <th className="pb-2">Precio venta</th>
-              <th className="pb-2">Costo proveedor</th>
+              {isAdmin && <th className="pb-2">Costo proveedor</th>}
               <th className="pb-2">Stock</th>
               <th className="pb-2">Mínimo</th>
               <th className="pb-2">Estado stock</th>
               <th className="pb-2">Pack</th>
               <th className="pb-2">Producto</th>
-              <th className="pb-2">Acción</th>
+              {isAdmin && <th className="pb-2">Accion</th>}
             </tr>
           </thead>
 
@@ -4270,9 +4290,11 @@ function ProductsView() {
                     {formatGs(product.precioVenta)}
                   </td>
 
-                  <td className="px-4 py-4 text-slate-600">
-                    {formatGs(product.costoProveedor)}
-                  </td>
+                  {isAdmin && (
+                    <td className="px-4 py-4 text-slate-600">
+                      {formatGs(product.costoProveedor)}
+                    </td>
+                  )}
 
                   <td
                     className={`px-4 py-4 font-semibold ${
@@ -4313,7 +4335,7 @@ function ProductsView() {
                     </span>
                   </td>
 
-                  <td className="rounded-r-2xl px-4 py-4">
+                  {isAdmin && <td className="rounded-r-2xl px-4 py-4">
                     <div className="flex gap-2">
                       <button
                         onClick={() => openEditForm(product)}
@@ -4328,7 +4350,7 @@ function ProductsView() {
                         Ajustar stock
                       </button>
                     </div>
-                  </td>
+                  </td>}
                 </tr>
               );
             })}
@@ -4338,7 +4360,7 @@ function ProductsView() {
     </>
       </section>
 
-            {editModalOpen && editingProductId !== null && (
+            {isAdmin && editModalOpen && editingProductId !== null && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-4">
           <div
             className="absolute inset-0"
@@ -4570,7 +4592,7 @@ function ProductsView() {
           </div>
         </div>
       )}
-      {adjustModalOpen && adjustingProduct && (
+      {isAdmin && adjustModalOpen && adjustingProduct && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-4">
           <div className="absolute inset-0" onClick={closeAdjustStockModal} />
 
@@ -6791,27 +6813,27 @@ function Content({
   onNavigate: (key: ModuleKey) => void;
   user: AuthUser;
 }) {
-  if (user.rol === "CAJERO" && !["dashboard", "ventas", "productos", "caja", "movimientos"].includes(active)) {
-    return <CajeroDashboard onNavigate={onNavigate as any} />;
+  if (user.rol === "CAJERO" && !["ventas", "productos", "caja", "movimientos"].includes(active)) {
+    return <CajaDiariaView rol={user.rol} />;
   }
 
   switch (active) {
     case "dashboard":
       return user.rol === "CAJERO" ? (
-        <CajeroDashboard onNavigate={onNavigate as any} />
+        <CajaDiariaView rol={user.rol} />
       ) : (
         <DashboardView onNavigate={onNavigate} />
       );
     case "ventas":
       return <SalesView />;
     case "productos":
-      return <ProductsView />;
+      return <ProductsView role={user.rol} />;
     case "categorias":
       return <CategoriesView />;
     case "stock":
       return <StockView />;
     case "movimientos":
-      return <MovimientosView />;
+      return <MovimientosView role={user.rol} />;
     case "caja":
       return <CajaDiariaView rol={user.rol} />;
     case "ingresos":
@@ -6849,7 +6871,7 @@ export default function App() {
         const user = await fetchJson<AuthUser>("/auth/me");
         setCurrentUser(user);
         if (user.rol === "CAJERO") {
-          setActive("ventas");
+          setActive("caja");
         }
       } catch {
         clearAuthToken();
@@ -6874,12 +6896,12 @@ export default function App() {
 
   function handleLogin(user: AuthUser) {
     setCurrentUser(user);
-    setActive(user.rol === "ADMIN" ? "dashboard" : "ventas");
+    setActive(user.rol === "ADMIN" ? "dashboard" : "caja");
   }
 
   function handlePasswordChanged(user: AuthUser) {
     setCurrentUser(user);
-    setActive(user.rol === "ADMIN" ? "dashboard" : "ventas");
+    setActive(user.rol === "ADMIN" ? "dashboard" : "caja");
   }
 
   function handleLogout() {
@@ -6902,7 +6924,7 @@ export default function App() {
     const primaryKeys =
       currentUser?.rol === "ADMIN"
         ? ["dashboard", "ventas", "productos", "caja"]
-        : ["dashboard", "ventas", "productos", "caja", "movimientos"];
+        : ["caja", "ventas", "productos", "movimientos"];
 
     return primaryKeys
       .map((key) => visibleNavigation.find((item) => item.key === key))

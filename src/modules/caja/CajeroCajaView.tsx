@@ -5,7 +5,7 @@ import {
   crearMovimientoCaja,
   getCajaEstado,
 } from "../../lib/api";
-import type { CajaEstado, CierreCajaResumen } from "../../lib/api";
+import type { CajaEstado, CajaResumenActual, CierreCajaResumen } from "../../lib/api";
 
 const formatGs = (value: number) =>
   new Intl.NumberFormat("es-PY", {
@@ -24,6 +24,7 @@ const formatDateTime = (value?: string) =>
 
 export function CajeroCajaView() {
   const [caja, setCaja] = useState<CajaEstado | null>(null);
+  const [resumen, setResumen] = useState<CajaResumenActual | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export function CajeroCajaView() {
     observacion: "",
   });
   const [cierre, setCierre] = useState({ montoFinal: "", observacion: "" });
+  const [confirmarCierre, setConfirmarCierre] = useState(false);
 
   const loadEstado = useCallback(async () => {
     try {
@@ -43,6 +45,7 @@ export function CajeroCajaView() {
       setError(null);
       const response = await getCajaEstado();
       setCaja(response.caja);
+      setResumen(response.resumen);
     } catch {
       setError("No se pudo cargar el estado de caja");
     } finally {
@@ -93,11 +96,11 @@ export function CajeroCajaView() {
     }
   }
 
-  async function handleCerrar(event: React.FormEvent) {
-    event.preventDefault();
+  async function confirmarCerrarCaja() {
     setError(null);
     setSuccess(null);
     setCierreResumen(null);
+    setConfirmarCierre(false);
 
     try {
       const response = await cerrarCaja({
@@ -113,7 +116,22 @@ export function CajeroCajaView() {
     }
   }
 
+  function handleCerrar(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setCierreResumen(null);
+    setConfirmarCierre(true);
+  }
+
   const cajaAbierta = caja?.estado === "ABIERTA";
+  const ventasDelDia =
+    (resumen?.ventasEfectivo || 0) +
+    (resumen?.ventasQR || 0) +
+    (resumen?.ventasTransferencia || 0) +
+    (resumen?.ventasMixto || 0);
+  const montoInicial = caja?.montoInicial || 0;
+  const montoEsperado = montoInicial + ventasDelDia;
 
   return (
     <div className="space-y-6">
@@ -131,6 +149,27 @@ export function CajeroCajaView() {
 
       {error && <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       {success && <div className="rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">{success}</div>}
+
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="min-h-[112px] rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Estado</p>
+          <p className={`mt-3 text-xl font-bold ${cajaAbierta ? "text-brand-700" : "text-slate-950"}`}>
+            {loading ? "Cargando..." : cajaAbierta ? "Abierta" : "Cerrada"}
+          </p>
+        </div>
+        <div className="min-h-[112px] rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Monto inicial</p>
+          <p className="mt-3 break-words text-xl font-bold text-slate-950">{formatGs(montoInicial)}</p>
+        </div>
+        <div className="min-h-[112px] rounded-[22px] border border-brand-100 bg-brand-50 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">Ventas del día</p>
+          <p className="mt-3 break-words text-xl font-bold text-brand-700">{formatGs(ventasDelDia)}</p>
+        </div>
+        <div className="min-h-[112px] rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Monto esperado</p>
+          <p className="mt-3 break-words text-xl font-bold text-slate-950">{formatGs(montoEsperado)}</p>
+        </div>
+      </section>
 
       <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -224,6 +263,45 @@ export function CajeroCajaView() {
             <div className="min-h-[112px] rounded-2xl bg-slate-50 p-3 sm:p-4"><p className="text-xs text-slate-500 sm:text-sm">Estado</p><p className="mt-2 text-lg font-bold sm:text-xl">{cierreResumen.diferencia === 0 ? "Correcto" : cierreResumen.diferencia < 0 ? "Faltante" : "Sobrante"}</p></div>
           </div>
         </section>
+      )}
+
+      {confirmarCierre && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-6">
+          <div className="w-full max-w-lg rounded-[28px] bg-white p-5 shadow-2xl sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">Confirmar cierre</p>
+            <h3 className="mt-3 text-2xl font-bold text-slate-950">Cerrar caja</h3>
+            <div className="mt-5 grid gap-3">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm text-slate-500">Ventas del día</p>
+                <p className="mt-1 text-xl font-bold text-slate-950">{formatGs(ventasDelDia)}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm text-slate-500">Caja inicial</p>
+                <p className="mt-1 text-xl font-bold text-slate-950">{formatGs(montoInicial)}</p>
+              </div>
+              <div className="rounded-2xl border border-brand-100 bg-brand-50 p-4">
+                <p className="text-sm font-semibold text-brand-700">Monto esperado</p>
+                <p className="mt-1 text-2xl font-bold text-brand-700">{formatGs(montoEsperado)}</p>
+              </div>
+            </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setConfirmarCierre(false)}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarCerrarCaja}
+                className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700"
+              >
+                Confirmar cierre
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
