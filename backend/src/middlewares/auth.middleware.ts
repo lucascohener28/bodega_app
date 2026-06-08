@@ -24,7 +24,6 @@ export async function authMiddleware(
         username: true,
         rol: true,
         activo: true,
-        debeCambiarPassword: true,
       },
     })
 
@@ -32,18 +31,11 @@ export async function authMiddleware(
       return res.status(401).json({ error: 'Usuario no autorizado' })
     }
 
-    const canChangePassword =
-      req.baseUrl === '/auth' && ['/me', '/change-password'].includes(req.path)
-
-    if (usuario.debeCambiarPassword && !canChangePassword) {
-      return res.status(403).json({ error: 'Debe cambiar su password antes de continuar' })
-    }
-
     req.user = {
       id: usuario.id,
       username: usuario.username,
       rol: usuario.rol,
-      debeCambiarPassword: usuario.debeCambiarPassword,
+      debeCambiarPassword: false,
     }
 
     next()

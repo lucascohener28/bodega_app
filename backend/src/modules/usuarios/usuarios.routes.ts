@@ -34,13 +34,15 @@ router.get('/', async (_req, res) => {
         email: true,
         rol: true,
         activo: true,
-        debeCambiarPassword: true,
         createdAt: true,
         updatedAt: true,
       },
     })
 
-    res.json(usuarios)
+    res.json(usuarios.map((usuario) => ({
+      ...usuario,
+      debeCambiarPassword: false,
+    })))
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Error al obtener usuarios' })
@@ -70,7 +72,6 @@ router.post('/', async (req, res) => {
         email,
         password: await hashPassword(password),
         rol,
-        debeCambiarPassword: true,
       },
       select: {
         id: true,
@@ -79,13 +80,15 @@ router.post('/', async (req, res) => {
         email: true,
         rol: true,
         activo: true,
-        debeCambiarPassword: true,
         createdAt: true,
         updatedAt: true,
       },
     })
 
-    res.status(201).json(usuario)
+    res.status(201).json({
+      ...usuario,
+      debeCambiarPassword: false,
+    })
   } catch (error: any) {
     console.error(error)
 
@@ -129,13 +132,15 @@ router.patch('/:id', async (req, res) => {
         email: true,
         rol: true,
         activo: true,
-        debeCambiarPassword: true,
         createdAt: true,
         updatedAt: true,
       },
     })
 
-    res.json(usuario)
+    res.json({
+      ...usuario,
+      debeCambiarPassword: false,
+    })
   } catch (error: any) {
     console.error(error)
 
@@ -163,13 +168,15 @@ router.patch('/:id/desactivar', async (req, res) => {
         email: true,
         rol: true,
         activo: true,
-        debeCambiarPassword: true,
         createdAt: true,
         updatedAt: true,
       },
     })
 
-    res.json(usuario)
+    res.json({
+      ...usuario,
+      debeCambiarPassword: false,
+    })
   } catch (error: any) {
     console.error(error)
 
@@ -193,7 +200,6 @@ router.patch('/:id/reset-password', async (req, res) => {
       where: { id: req.params.id },
       data: {
         password: await hashPassword(password),
-        debeCambiarPassword: true,
       },
     })
 

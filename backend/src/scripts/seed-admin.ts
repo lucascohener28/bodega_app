@@ -19,7 +19,6 @@ async function main() {
         username,
         rol: Rol.ADMIN,
         activo: true,
-        debeCambiarPassword: false,
       },
     })
     console.log(`Admin principal verificado: ${username}`)
@@ -39,7 +38,6 @@ async function main() {
         password: passwordHash,
         rol: Rol.ADMIN,
         activo: true,
-        debeCambiarPassword: false,
       },
     })
     console.log(`Admin viejo actualizado a: ${username}`)
@@ -53,7 +51,6 @@ async function main() {
       password: passwordHash,
       rol: Rol.ADMIN,
       activo: true,
-      debeCambiarPassword: false,
     },
   })
 

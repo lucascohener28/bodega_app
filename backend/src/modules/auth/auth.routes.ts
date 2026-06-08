@@ -77,7 +77,6 @@ router.get('/me', authMiddleware, async (req, res) => {
         email: true,
         rol: true,
         activo: true,
-        debeCambiarPassword: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -87,7 +86,10 @@ router.get('/me', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado' })
     }
 
-    res.json(usuario)
+    res.json({
+      ...usuario,
+      debeCambiarPassword: false,
+    })
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Error al obtener usuario autenticado' })
@@ -125,7 +127,6 @@ router.post('/change-password', authMiddleware, async (req, res) => {
       where: { id: usuario.id },
       data: {
         password: await hashPassword(newPassword),
-        debeCambiarPassword: false,
       },
       select: {
         id: true,
@@ -134,13 +135,15 @@ router.post('/change-password', authMiddleware, async (req, res) => {
         email: true,
         rol: true,
         activo: true,
-        debeCambiarPassword: true,
       },
     })
 
     res.json({
       message: 'Password actualizada correctamente',
-      usuario: updated,
+      usuario: {
+        ...updated,
+        debeCambiarPassword: false,
+      },
     })
   } catch (error) {
     console.error(error)
