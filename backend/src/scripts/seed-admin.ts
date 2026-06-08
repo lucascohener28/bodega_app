@@ -17,13 +17,12 @@ async function main() {
       data: {
         nombre: 'Osvaldo',
         username,
-        password: passwordHash,
         rol: Rol.ADMIN,
         activo: true,
         debeCambiarPassword: false,
       },
     })
-    console.log(`Admin principal actualizado: ${username}`)
+    console.log(`Admin principal verificado: ${username}`)
     return
   }
 

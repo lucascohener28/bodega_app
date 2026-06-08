@@ -12,7 +12,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "build": "tsc",
-    "start": "npx prisma migrate deploy && node dist/server.js",
+    "start": "npx prisma migrate deploy && node dist/scripts/seed-admin.js && node dist/server.js",
     "seed:admin": "npm run build && node dist/scripts/seed-admin.js",
     "reset:operational-data": "tsx src/scripts/reset-operational-data.ts",
     "delete:venta47-liquidacion18": "tsx src/scripts/delete-venta-47-liquidacion-18.ts",
