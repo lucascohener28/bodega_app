@@ -17,6 +17,15 @@ router.post('/login', async (req, res) => {
 
     const usuario = await prisma.usuario.findUnique({
       where: { username },
+      select: {
+        id: true,
+        nombre: true,
+        username: true,
+        email: true,
+        password: true,
+        rol: true,
+        activo: true,
+      },
     })
 
     if (!usuario) {
@@ -48,7 +57,7 @@ router.post('/login', async (req, res) => {
         email: usuario.email,
         rol: usuario.rol,
         activo: usuario.activo,
-        debeCambiarPassword: usuario.debeCambiarPassword,
+        debeCambiarPassword: false,
       },
     })
   } catch (error) {
