@@ -21,9 +21,24 @@ const app = express()
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173'
 const allowedOrigins = corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean)
 
+function isAllowedOrigin(origin: string) {
+  return allowedOrigins.some((allowedOrigin) => {
+    if (allowedOrigin.includes('*')) {
+      const escapedPattern = allowedOrigin
+        .split('*')
+        .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('.*')
+      const pattern = new RegExp(`^${escapedPattern}$`)
+      return pattern.test(origin)
+    }
+
+    return allowedOrigin === origin
+  })
+}
+
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || isAllowedOrigin(origin)) {
       callback(null, true)
       return
     }
