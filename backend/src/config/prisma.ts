@@ -9,7 +9,11 @@ if (!connectionString) {
   throw new Error('DATABASE_URL no está definida')
 }
 
-const pool = new Pool({ connectionString })
+const poolMax = Number(process.env.DB_POOL_MAX || '1')
+const pool = new Pool({
+  connectionString,
+  max: Number.isFinite(poolMax) && poolMax > 0 ? poolMax : 1,
+})
 const adapter = new PrismaPg(pool)
 
 export const prisma = new PrismaClient({ adapter })

@@ -32,6 +32,7 @@ Backend/API en Vercel:
 ```env
 DATABASE_URL=postgresql://...
 DIRECT_URL=postgresql://...
+DB_POOL_MAX=1
 JWT_SECRET=...
 JWT_EXPIRES_IN=8h
 CORS_ORIGIN=http://localhost:5173,http://localhost:5174,https://TU-FRONTEND.vercel.app
@@ -78,6 +79,7 @@ Probar en Vercel:
 - Liquidaciones
 - Dashboard
 - Reportes
+- Movimientos
 - Vista mobile
 - PWA/acceso directo
 
